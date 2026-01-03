@@ -24,7 +24,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <p class="host">🖥️ {{.Host}}</p>
+            <p class="host">{{.Host}}</p>
             <div class="status {{if eq .Status "Sucesso"}}status-success{{else if eq .Status "Vulnerabilidade"}}status-warning{{else}}status-error{{end}}">
                 {{.Status}}
             </div>
