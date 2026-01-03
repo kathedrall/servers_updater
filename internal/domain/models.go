@@ -35,4 +35,7 @@ type EmailData struct {
  Date *time.Time
 }
 
-
+type SSHClient interface {
+ ExecuteCommand(cmd string) (string, error)
+ Close() error
+}
