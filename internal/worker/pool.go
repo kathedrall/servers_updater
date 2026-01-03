@@ -14,7 +14,17 @@ func Run(ctx context.Context, hosts []string, database *db.BoltDB) error {
  for _, h := range hosts {
   host := h
   g.Go(func() error {
-   return ssh.ProcessServer(ctx, host, database)	
+   log.Printf("[POOL] Stating Connection with %s...",host)
+
+   ssh, err := ssh.Connect(host,database)
+   if err != nil {
+    log.Printf("[ERROR] It was not possible to establish a connection with: %s: %v", host, err)
+    return nil
+   }
+
+
+
+   return ProcessSingleServer(ctx, host, database,sshClient)	
   })
  }
  return g.Wait()
