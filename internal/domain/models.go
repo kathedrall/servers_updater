@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 type Machine struct {
  Id string `json:"id"`
  Host string `json:"host"`
@@ -24,3 +26,13 @@ type SMTPConfig struct {
  Password string
  To string
 }
+
+type EmailData struct {
+ Host string
+ Status string
+ Packages []Package
+ ErrorMessage string
+ Date *time.Time
+}
+
+
