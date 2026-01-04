@@ -9,7 +9,8 @@ import(
 
 func Run(ctx context.Context, hosts []string, database *db.BoltDB) error {
  g, ctx := errgroup.WithContext(ctx)
- g.SetLimit(10)
+ limit, _ := database.GetPoolLimit()
+ g.SetLimit(limit)
 
  for _, h := range hosts {
   host := h
