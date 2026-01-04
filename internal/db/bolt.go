@@ -18,6 +18,8 @@ const (
  bucketSettings = "Settings"
  bucketCredentials = "Credentials"
  smtpKey = "smtp_config"
+ poolLimitKey = "pool_limit"
+ poolLimitDefault = 10
 )
 
 func InitDB(path string) (*BoltDB, error) {
@@ -134,5 +136,28 @@ func decrypt(cipherText []byte, key []byte) ([]byte, error) {
 
   nonce, actualCiphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
   return gcm.Open(nil, nonce, actualCiphertext, nil)
+}
+
+func (db *BoltDB) SavePoolLimit(limit int) error {
+ return db.conn.Update(func(tx *bbolt.Tx) error {
+  b := tx.Bucket([]byte(bucketSettings))
+  val := fmt.Sprintf("%d", limit)
+   return b.Put([]byte(poolLimitKey), []byte(val))
+ })
+}
+
+func (db *BoltDB) GetPoolLimit() (int, error) {
+ var limit int
+ err := db.con.View(func(tx *bbolt.Tx) error {
+  b := tx.Bucket([]byte(bucketSettings))
+  v := b.Get([]byte(poolLimitKey))
+   if v == nil {
+    limit = poolLimitDefault
+    return nil
+   } 
+  _, err := fmt.Sscanf(string(v), "%d", &limit)
+    return err
+ })
+ return limit, err
 }
 
