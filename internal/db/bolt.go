@@ -8,11 +8,15 @@ import (
  "errors"
  "fmt"
  "io"
- "servers_update/internal/domain"
+ "servers_updater/internal/domain"
  "time"
 
  "go.etcd.io/bbolt"
 )
+
+type BoltDB struct {
+ conn *bbolt.DB
+}
 
 const (
  bucketSettings = "Settings"
@@ -28,7 +32,7 @@ func InitDB(path string) (*BoltDB, error) {
   return nil, fmt.Errorf("error when starting bbolt: %w", err)
  }
 
- err = db.Update(func(tx *bbolt.TX) error {
+ err = db.Update(func(tx *bbolt.Tx) error {
   if _, err := tx.CreateBucketIfNotExists([]byte(bucketSettings)); err != nil {
    return err
  }
@@ -49,7 +53,7 @@ func (db *BoltDB) Close() error {
 }
 
 func (db *BoltDB) SaveSMTPConfig(cfg domain.SMTPConfig) error {
- return db.conn.Update(func(tx *bbolt.TX) error {
+ return db.conn.Update(func(tx *bbolt.Tx) error {
   b := tx.Bucket([]byte(bucketSettings))
   data, err := json.Marshal(cfg)
    if err != nil {
@@ -61,31 +65,31 @@ func (db *BoltDB) SaveSMTPConfig(cfg domain.SMTPConfig) error {
 
 func (db *BoltDB) GetSMTPConfig() (domain.SMTPConfig, error) {
  var cfg domain.SMTPConfig
- err := db.conn.View(func(tx *bbolt.TX) error {
+ err := db.conn.View(func(tx *bbolt.Tx) error {
   b := tx.Bucket([]byte(bucketSettings))
   v := b.Get([]byte(smtpKey))
    if v == nil {
     return errors.New("SMTP configuration not found.")
    }
    return json.Unmarshal(v, &cfg)
- )}
+ })
  return cfg, err
 }
 
 func (db *BoltDB) SavePassword(host string, password string, masterKey []byte) error {
- encrypted, err := encrypt([]byte(password),maskerKey)
+ encrypted, err := encrypt([]byte(password),masterKey)
  if err != nil {
   return err
  }
- return db.conn.Update(func(tx *bbolt.TX) error {
+ return db.conn.Update(func(tx *bbolt.Tx) error {
   b := tx.Bucket([]byte(bucketCredentials))
   return b.Put([]byte(host), encrypted)
- )}
+ })
 }
 
 func (db *BoltDB) GetPassword(host string, masterKey []byte) (string, error) {
  var decrypted []byte
- err := db.conn.View(func(tx *bbolt.TX) error {
+ err := db.conn.View(func(tx *bbolt.Tx) error {
   b := tx.Bucket([]byte(bucketCredentials))
   v := b.Get([]byte(host))
   if v == nil {
@@ -93,7 +97,7 @@ func (db *BoltDB) GetPassword(host string, masterKey []byte) (string, error) {
   }
 
   var errDec error
-  decrypted, errDec = decrypt(v, maskerKey)
+  decrypted, errDec = decrypt(v, masterKey)
   return errDec
  })
  return string(decrypted), err
@@ -134,7 +138,7 @@ func decrypt(cipherText []byte, key []byte) ([]byte, error) {
     return nil, errors.New("ciphertext too short")
   }
 
-  nonce, actualCiphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+  nonce, actualCiphertext := cipherText[:nonceSize], cipherText[nonceSize:]
   return gcm.Open(nil, nonce, actualCiphertext, nil)
 }
 
@@ -148,7 +152,7 @@ func (db *BoltDB) SavePoolLimit(limit int) error {
 
 func (db *BoltDB) GetPoolLimit() (int, error) {
  var limit int
- err := db.con.View(func(tx *bbolt.Tx) error {
+ err := db.conn.View(func(tx *bbolt.Tx) error {
   b := tx.Bucket([]byte(bucketSettings))
   v := b.Get([]byte(poolLimitKey))
    if v == nil {
