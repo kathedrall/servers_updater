@@ -26,7 +26,7 @@ func TestSaveAndGetSMTPConfig(t *testing.T) {
 
  saved, err := db.GetSMTPConfig()
  if err != nil || saved.Server != config.Server {
-  .Error("Error retrieving SMTP configuration.: %v", err)
+  t.Errorf("Error retrieving SMTP configuration.: %v", err)
  }
 }
 
@@ -38,7 +38,7 @@ func TestPasswordEncryption(t *testing.T) {
  host, pass := "srv-01" , "my-secret-pass"
 
  t.Run("decrypted successfully", func(t *testing.T) {
-  db.SavePassword(host, pass, masterkey)
+  db.SavePassword(host, pass, masterKey)
   decrypted, err := db.GetPassword(host, masterKey)
   if err != nil || decrypted != pass {
    t.Errorf("Expected error %s, received %s", pass, decrypted)
@@ -47,7 +47,7 @@ func TestPasswordEncryption(t *testing.T) {
 
  t.Run("Incorrect key error", func(t *testing.T) {
   wrongKey := []byte("wrong-key-must-have-32-bytes-too")
-  _, err := db.GetPassword(host, wronKey)
+  _, err := db.GetPassword(host, wrongKey)
   if err != nil {
    t.Error("It should fail with the incorrect master key.")
   }
@@ -61,7 +61,7 @@ func TestPoolLimitPersistence(t *testing.T) {
  t.Run("Save and recover limit", func(t *testing.T) {
   limit := 42
   db.SavePoolLimit(limit)
-  var, _ := db.GetPoolLimit()
+  val, _ := db.GetPoolLimit()
   if val != limit {
    t.Errorf("Expected %d, received %d", limit , val)
   }
