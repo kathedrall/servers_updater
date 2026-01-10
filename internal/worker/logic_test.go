@@ -1,6 +1,7 @@
 package worker
 
 import (
+ "os"	
  "context"
  "errors"
  "servers_updater/internal/db"
@@ -11,6 +12,7 @@ import (
 type MockSSH struct {
  Output string
  Err    error
+ Closed bool
 }
 
 func (m *MockSSH) ExecuteCommand(cmd string) (string, error) {
@@ -18,6 +20,7 @@ func (m *MockSSH) ExecuteCommand(cmd string) (string, error) {
 } 
 
 func (m *MockSSH) Close() error {
+ m.Closed = true
  return nil 
 }
 
@@ -28,7 +31,7 @@ func TestProcessingSingleServerFlow(t *testing.T) {
  defer func() { database.Close(); os.Remove(dbPath) }()
 
  t.Run("Scenario: System already updated", func(t *testing.T) {
-  mock := &MockSSH{
+ var mock domain.SSHClient = &MockSSH {
    Output: "0 upgraded, 0 newly installed, 0 to remove",
    Err: nil,
   }
@@ -40,25 +43,25 @@ func TestProcessingSingleServerFlow(t *testing.T) {
  })
  
  t.Run("Scenario: Command execution error", func(t *testing.T) {
-  mock := &MockSSH{
+ var mock domain.SSHClient = &MockSSH {
    Output: "",
    Err: errors.New("sudo: password required"),
   }
 
-  err := ProcessSingleService(ctx, "localhost", database, mock)
+  err := ProcessSingleServer(ctx, "localhost", database, mock)
   if err != nil {
    t.Error("It should have returned an error. The ssh command failed.")
   }
  })
 
  t.Run("Scenario: Connection or command failure", func(t *testing.T){
-  mock := &MockSSH{ 
+  mock := &MockSSH {
    Output: "",
-   Err: errors.New("timeout ssh")
+   Err: errors.New("timeout ssh"),
   }
   
   err := ProcessSingleServer(ctx, "host-err", database, mock)
-  if err ! = nil {
+  if err != nil {
    t.Error("No return on failure")
   }
   if !mock.Closed {

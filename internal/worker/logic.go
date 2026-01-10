@@ -25,7 +25,7 @@ func ProcessSingleServer(ctx context.Context, host string, database *db.BoltDB, 
  }
  
  packages := ssh.ParseAptOutput(output)
- if len(packages) = 0 {
+ if len(packages) == 0 {
   log.Printf("[%s] OK, no packages to update.", host)
   return nil
  }
@@ -53,12 +53,12 @@ func ProcessSingleServer(ctx context.Context, host string, database *db.BoltDB, 
 
 func sendErrorNotification(host string, database *db.BoltDB, msg string) {
  cfg, _ := database.GetSMTPConfig()
- notify.SendHTMLEmail(cfg, domain.EmailData{Host: host, Status: "Error", ErrorMessage: msg})
+ notify.SendHtmlEmail(cfg, domain.EmailData{Host: host, Status: "Error", ErrorMessage: msg})
 }
 
 func sendVulnerabilityNotification(host string, database *db.BoltDB, pkgs []domain.Package, msg string) {
  cfg, _ := database.GetSMTPConfig()
- notify.SendHTMLEmail(cfg, domain.EmailData{Host: host, Status: "Vulnerability", Packages: pkgs, ErrorMessage: msg})
+ notify.SendHtmlEmail(cfg, domain.EmailData{Host: host, Status: "Vulnerability", Packages: pkgs, ErrorMessage: msg})
 }
 
 

@@ -5,7 +5,7 @@ import (
  "os"
  "regexp"
  "servers_updater/internal/domain"
- "golang.orgq/x/crypto/ssh"
+ "golang.org/x/crypto/ssh"
 )
 
  type SSHWrapper struct {
@@ -19,7 +19,7 @@ import (
   }
   defer session.Close()
 
-  out, err := session.CombineOutput(cmd)
+  out, err := session.CombinedOutput(cmd)
   return string(out), err
 
 }
@@ -28,7 +28,7 @@ import (
   return w.Client.Close()	
  }
 
- func Connect(m domain.Machine) (dommain.SSHClient, error) {
+ func Connect(m domain.Machine) (domain.SSHClient, error) {
   key, err := os.ReadFile(m.KeyPath)
   if err != nil {
    e := fmt.Errorf("The SSH key could not be read.: %v", err) 
@@ -49,21 +49,23 @@ import (
    HostKeyCallback: ssh.InsecureIgnoreHostKey(),
   }
 
-  client, err := ssh.Dial("tcp", m.Host+:"22"+, config)
-  if err != nil {
-   return nil, err
-  }
+  client, err := ssh.Dial("tcp", m.Host+":22", config)
+   if err != nil {
+    return nil, err
+   }
+  return &SSHWrapper{Client: client}, nil 
+ }
 
  func ParseAptOutput(output string) []domain.Package {
   var pkgs []domain.Package
-  re := regexp.MustCompile(`Inst\s+([^\s]+)\s+\[^\]]+)\]\s+\(([^\s]+)`)
+  re := regexp.MustCompile(`Inst\s+([^\s]+)\s+\[([^\]]+)\]\s+\(([^\s]+)`)
   matches := re.FindAllStringSubmatch(output, -1)
 
    for _, m := range matches {
     pkgs = append(pkgs, domain.Package {
      Name: m[1],
      CurrentVersion: m[2],
-     NewVeersion: m[3],
+     NewVersion: m[3],
     })
    }
    return pkgs

@@ -3,9 +3,8 @@
  import(
    "context"
    "log"
-   "servers_updater/internal/config"
    "servers_updater/internal/db"
-   "servers_update/internal/worker"
+   "servers_updater/internal/worker"
 )
 
 func main() {
@@ -22,8 +21,8 @@ func main() {
    log.Fatal("Error reading ssh config file.: %v, err")
   }
 
-  ctx := conext.Background()
-  if err := worker.Run(ctx, hosts, database) != nil {
-   log.Printf("Process completed with errors.: %v, err")
+  ctx := context.Background()
+  if err := worker.Run(ctx, hosts, database); err != nil {
+   log.Printf("Process completed with errors.: %v", err)
   }
-
+ }

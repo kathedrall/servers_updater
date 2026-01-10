@@ -24,8 +24,8 @@ func SendHtmlEmail(cfg domain.SMTPConfig, data domain.EmailData) error {
  mime := "MIME-version: 1.0;\nContent-Type: text/html: charset=\"UTF-8\"\n\n"
  msg := []byte(subject + mime + body.String())
  auth := smtp.PlainAuth("", cfg.User, cfg.Password, cfg.Server)
-
- return smt.SendMail(addr, auth, cfg.User, []string{cfg.To}, msg)
+ 
+ return smtp.SendMail(addr, auth, cfg.User, []string{cfg.To}, msg)
 
 
 

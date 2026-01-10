@@ -8,11 +8,11 @@ package security
  )
 
  const (
-  ECOSYSTEM = "Debian"
+  ECOSYSTEM = "Debian:11"
   URL = "http://api.osv.dev/v1/query"
  )
 
- type osvQuery stuct {
+ type osvQuery struct {
   Version string `json:"veersion"`
   Package struct {
    Name string `json:"name"`
@@ -27,16 +27,16 @@ package security
 
   body, _ := json.Marshal(query)
   
-  client := &http.Client{Timeout: 5 * time.Secound}
+  client := &http.Client{Timeout: 5 * time.Second}
   resp, err := client.Post(URL, "application/json", bytes.NewBuffer(body))
    if err != nil {
     e := "API connection failed."
     return false, e
    }
-   defer res.Body.Close()
+   defer resp.Body.Close()
 
    var result map[string]interface{}
-   if err := json.NewDecode(resp.Body).Decode(&result); err != nil {
+   if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
     e := "Error processing API response."
     return false , e
    }
