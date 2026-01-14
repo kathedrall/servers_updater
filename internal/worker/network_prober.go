@@ -9,7 +9,7 @@ import (
  "time"
 )
 
-const TARGET = 8.8.8.8
+const TARGET = "8.8.8.8"
 
 type NetworkProfile struct {
  RTT              time.Duration
@@ -45,7 +45,7 @@ func runPingCommand(ctx context.Context, target string) (string, error) {
  cmd := exec.CommandContext(ctx, "ping", "-c", "4", "-i", "0-2", target)
  out , err := cmd.CombinedOutput()
  if err != nil {
-  n := NetworkProfile{}
+  n := ""
   e := fmt.Errorf("ping falied: %w", err)
  return n, e
  }
