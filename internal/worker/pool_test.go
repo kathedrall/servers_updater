@@ -4,6 +4,7 @@ import (
  "context"
  "servers_updater/internal/db"
  "testing"
+ "os"
 )
 
 func TestPoolExecution(t *testing.T) {
