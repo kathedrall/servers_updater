@@ -13,7 +13,7 @@ package security
  )
 
  type osvQuery struct {
-  Version string `json:"veersion"`
+  Version string `json:"version"`
   Package struct {
    Name string `json:"name"`
    Ecosystem string `json:"ecosystem"`

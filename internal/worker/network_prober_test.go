@@ -35,14 +35,14 @@ func TestCalculateWorkers(t *testing.T) {
     --- 8.8.8.8 ping statistics ---
     2 packets trasmitted, 2 received, 0% packet loss, time 1001ms rtt /min/avg/max/mdev = 14.234/16.367/18.5-1/2.133 ms`
 
-  expected := 16367 * time.Microsecond 
-  result, err := parseLatency(fakeOutput)
+  latency, err := parseLatency(fakeOutput)
   if err != nil {
    t.Fatalf("Unexpected parsing error: %v", err)
   }
 
-  if result.Truncate(time.Microsecond) != expected {
-   t.Errorf("Expected %v, obtained %v", expected, result)
+  expected := 50 * time.Millisecond
+  if latency != expected {
+   t.Errorf("Expected %v, obtained %v", expected, latency)
   }
 }
 

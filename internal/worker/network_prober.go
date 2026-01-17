@@ -11,6 +11,8 @@ import (
 
 const TARGET = "8.8.8.8"
 
+var pingRegex = regexp.MustCompile(`(?:rtt|round-trip)\s+min/avg/max(?:/[a-z]+)?\s*=\s*[\d\.]+/([\d\.]+)/`)
+
 type NetworkProfile struct {
  RTT              time.Duration
  SuggestedWorkers int
@@ -53,8 +55,7 @@ return string(out), nil
 }
 
 func parseLatency(output string) (time.Duration, error) {
- re := regexp.MustCompile(`min/avg/max/mdev\s+=\d+\.\d+/(\d+\.\d+)/`)
- matches := re.FindStringSubmatch(output)
+ matches := pingRegex.FindStringSubmatch(output)
  if len(matches) < 2 {
   e := fmt.Errorf("could not parse ping output")
  return 0, e

@@ -6,7 +6,7 @@ package security
  func TestCheckOSV(t *testing.T) {
 
  t.Run("Detect known vulnerability", func(t *testing.T) {	 
-  isVun, info := CheckOSV("openssl", "1.1.1f")
+  isVun, info := CheckOSV("openssl", "1.1.1f-ubuntu2")
   if !isVun {
    t.Error("It should have detected a vulnerability in OpenSSL 1.1.1f")
   }

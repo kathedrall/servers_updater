@@ -24,6 +24,9 @@ const (
  smtpKey = "smtp_config"
  poolLimitKey = "pool_limit"
  poolLimitDefault = 10
+
+ sshUserKey = "ssh_user"
+ sshKeyPathKey = "ssh_key_path"
 )
 
 func InitDB(path string) (*BoltDB, error) {
@@ -163,5 +166,41 @@ func (db *BoltDB) GetPoolLimit() (int, error) {
     return err
  })
  return limit, err
+}
+
+func (db *BoltDB) SaveSSHConfig(user string, keyPath string) error {
+ return db.conn.Update(func(tx *bbolt.Tx) error {
+  b := tx.Bucket([]byte(bucketSettings))
+  if b == nil {
+   return fmt.Errorf("bucket %s not found", bucketSettings)
+  }
+
+  if err := b.Put([]byte(sshUserKey), []byte(user)); err != nil {
+   return err
+  }
+  return b.Put([]byte(sshKeyPathKey), []byte(keyPath)) 
+ })
+}
+
+func (db *BoltDB) GetSSHConfig() (string, string, error) {
+ var user, keyPath string
+
+ err := db.conn.View(func(tx *bbolt.Tx) error {
+  b := tx.Bucket([]byte(bucketSettings))
+  if b == nil {
+   return fmt.Errorf("bucket %s not found", bucketSettings)
+  }
+
+ vUser := b.Get([]byte(sshUserKey))
+ vKey  := b.Get([]byte(sshKeyPathKey))
+  if vUser == nil || vKey == nil {
+   return errors.New("SSH configuration not found.")
+  } 
+
+ user = string(vUser)
+ keyPath = string(vKey)
+ return nil
+})
+return user, keyPath, err
 }
 
