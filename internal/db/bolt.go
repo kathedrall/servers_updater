@@ -10,7 +10,7 @@ import (
  "io"
  "servers_updater/internal/domain"
  "time"
-
+ "encoding/json"
  "go.etcd.io/bbolt"
 )
 
@@ -19,14 +19,16 @@ type BoltDB struct {
 }
 
 const (
- bucketSettings = "Settings"
- bucketCredentials = "Credentials"
- smtpKey = "smtp_config"
- poolLimitKey = "pool_limit"
- poolLimitDefault = 10
+ BUCKET_SETTINGS = "Settings"
+ BUCKET_CREDENTIALS = "Credentials"
+ BUCKET_RECEPIENTS = "Recipients"
+ BUCKET_NAME = "Config"
+ SMTP_KEY = "smtp_config"
+ POOL_LIMIT_KEY = "pool_limit"
+ POOL_LIMIT_DEFAULT = 10
 
- sshUserKey = "ssh_user"
- sshKeyPathKey = "ssh_key_path"
+ SSH_USER_KEY = "ssh_user"
+ SSH_KEY_PATH_KEY = "ssh_key_path"
 )
 
 func InitDB(path string) (*BoltDB, error) {
@@ -36,10 +38,10 @@ func InitDB(path string) (*BoltDB, error) {
  }
 
  err = db.Update(func(tx *bbolt.Tx) error {
-  if _, err := tx.CreateBucketIfNotExists([]byte(bucketSettings)); err != nil {
+  if _, err := tx.CreateBucketIfNotExists([]byte(BUCKET_SETTINGS)); err != nil {
    return err
  }
-  if _, err := tx.CreateBucketIfNotExists([]byte(bucketCredentials)); err != nil {
+  if _, err := tx.CreateBucketIfNotExists([]byte(BUCKET_CREDENTIALS)); err != nil {
    return err
   }
   return nil
@@ -56,27 +58,66 @@ func (db *BoltDB) Close() error {
 }
 
 func (db *BoltDB) SaveSMTPConfig(cfg domain.SMTPConfig) error {
- return db.conn.Update(func(tx *bbolt.Tx) error {
-  b := tx.Bucket([]byte(bucketSettings))
-  data, err := json.Marshal(cfg)
-   if err != nil {
-    return err
-   }
-  return b.Put([]byte(smtpKey),data)
+ return db.conn.Update(func(tx *bolt.Tx) error {
+  bucket, err := tx.CreateBucketIfNotExists([]byte(BUCKET_NAME))
+  if err != nil {
+   return err
+  }
+  data, _ := json.Marshal(config)
+  return bucket.Put([]byte(SMTP_KEY),data)
  })
 }
 
 func (db *BoltDB) GetSMTPConfig() (domain.SMTPConfig, error) {
- var cfg domain.SMTPConfig
- err := db.conn.View(func(tx *bbolt.Tx) error {
-  b := tx.Bucket([]byte(bucketSettings))
-  v := b.Get([]byte(smtpKey))
-   if v == nil {
-    return errors.New("SMTP configuration not found.")
-   }
-   return json.Unmarshal(v, &cfg)
+ var config domain.SMTPConfig
+ err := db.conn.View(func(tx *bolt.Tx) error {
+ bucket := tx.Bucket([]byte(BUCKET_NAME))
+ if bucket == nil {
+  return fmt.Errorf("Config Bucket not found.")
+ }
+ data := bucket.Get([]byte(config))
+ if data == nil {
+  return fmt.Errorf("no SMTP config found")
+ } 
+ return json.Unmarshal(v, &config)
  })
- return cfg, err
+ return config, err
+}
+
+func (db *BoltDB) AddRecipient(email string) error {
+ return db.conn.Update(func(tx *bbolt.TX) error {
+  bucket, err := tx.CreateBucketIfNotExists([]byte(BUCKET_RECEPIENTS))
+  if err != nil {
+   return err
+  }
+  return bucket.Put([]byte(email), []byte(email))
+ })
+}
+
+func (db *BoltDB) RemoveRecipient(email string) error {
+ return db.conn.Update(func(tx *bbolt.TX) error {
+  bucket := tx.Bucket([]byte(BUCKET_RECEPIENTS))
+  if bucket == nil {
+   return nil
+  }
+  return bucket.Delete([]byte(email))
+ })
+}
+
+func (db *BoltDB) ListRecipient() ([]string, error) {
+ var emails []string
+ err := db.conn.View(func(tx *bbolt.TX) error {
+  bucket := tx.Bucket([]byte(BUCKET_RECEPIENTS))
+   if bucket == nil {
+    return nil
+   }
+
+  return bucket.Foreach(func(k, v []byte) error {
+   emails = append(emails, string(v))
+   return nil
+  })
+ })
+ return emails, err
 }
 
 func (db *BoltDB) SavePassword(host string, password string, masterKey []byte) error {
@@ -85,7 +126,7 @@ func (db *BoltDB) SavePassword(host string, password string, masterKey []byte) e
   return err
  }
  return db.conn.Update(func(tx *bbolt.Tx) error {
-  b := tx.Bucket([]byte(bucketCredentials))
+  b := tx.Bucket([]byte(BUCKET_CREDENTIALS))
   return b.Put([]byte(host), encrypted)
  })
 }
@@ -93,7 +134,7 @@ func (db *BoltDB) SavePassword(host string, password string, masterKey []byte) e
 func (db *BoltDB) GetPassword(host string, masterKey []byte) (string, error) {
  var decrypted []byte
  err := db.conn.View(func(tx *bbolt.Tx) error {
-  b := tx.Bucket([]byte(bucketCredentials))
+  b := tx.Bucket([]byte(BUCKET_CREDENTIALS))
   v := b.Get([]byte(host))
   if v == nil {
    return fmt.Errorf("Password not found for host.: %s",host)
@@ -147,19 +188,19 @@ func decrypt(cipherText []byte, key []byte) ([]byte, error) {
 
 func (db *BoltDB) SavePoolLimit(limit int) error {
  return db.conn.Update(func(tx *bbolt.Tx) error {
-  b := tx.Bucket([]byte(bucketSettings))
+  b := tx.Bucket([]byte(BUCKET_SETTINGS))
   val := fmt.Sprintf("%d", limit)
-   return b.Put([]byte(poolLimitKey), []byte(val))
+   return b.Put([]byte(POOL_LIMIT_KEY), []byte(val))
  })
 }
 
 func (db *BoltDB) GetPoolLimit() (int, error) {
  var limit int
  err := db.conn.View(func(tx *bbolt.Tx) error {
-  b := tx.Bucket([]byte(bucketSettings))
-  v := b.Get([]byte(poolLimitKey))
+  b := tx.Bucket([]byte(BUCKET_SETTINGS))
+  v := b.Get([]byte(POOL_LIMIT_KEY))
    if v == nil {
-    limit = poolLimitDefault
+    limit = POOL_LIMIT_DEFAULT
     return nil
    } 
   _, err := fmt.Sscanf(string(v), "%d", &limit)
@@ -170,15 +211,15 @@ func (db *BoltDB) GetPoolLimit() (int, error) {
 
 func (db *BoltDB) SaveSSHConfig(user string, keyPath string) error {
  return db.conn.Update(func(tx *bbolt.Tx) error {
-  b := tx.Bucket([]byte(bucketSettings))
+  b := tx.Bucket([]byte(BUCKET_SETTINGS))
   if b == nil {
-   return fmt.Errorf("bucket %s not found", bucketSettings)
+   return fmt.Errorf("bucket %s not found", BUCKET_SETTINGS)
   }
 
-  if err := b.Put([]byte(sshUserKey), []byte(user)); err != nil {
+  if err := b.Put([]byte(SSH_USER_KEY), []byte(user)); err != nil {
    return err
   }
-  return b.Put([]byte(sshKeyPathKey), []byte(keyPath)) 
+  return b.Put([]byte(SSH_KEY_PATH_KEY), []byte(keyPath)) 
  })
 }
 
@@ -186,13 +227,13 @@ func (db *BoltDB) GetSSHConfig() (string, string, error) {
  var user, keyPath string
 
  err := db.conn.View(func(tx *bbolt.Tx) error {
-  b := tx.Bucket([]byte(bucketSettings))
+  b := tx.Bucket([]byte(BUCKET_SETTINGS))
   if b == nil {
-   return fmt.Errorf("bucket %s not found", bucketSettings)
+   return fmt.Errorf("bucket %s not found", BUCKET_SETTINGS)
   }
 
- vUser := b.Get([]byte(sshUserKey))
- vKey  := b.Get([]byte(sshKeyPathKey))
+ vUser := b.Get([]byte(SSH_USER_KEY))
+ vKey  := b.Get([]byte(SSH_KEY_PATH_KEY))
   if vUser == nil || vKey == nil {
    return errors.New("SSH configuration not found.")
   } 
