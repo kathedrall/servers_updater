@@ -1,16 +1,15 @@
- package main
+package main
 
- import(
-   "context"
-   "log"
-   "servers_updater/internal/db"
-   "servers_updater/internal/ui"
+import(
+ "log"
+ "servers_updater/internal/db"
+ "servers_updater/internal/ui"
 )
 
 func main() {
- database, err := db.New("updater.db")
+ database, err := db.InitDB("updater.db")
  if err != nil {
-  log.Fatal("Failed to start DB: %v, err")	
+  log.Fatalf("Failed to start DB: %v", err)	
  }
  defer database.Close()
 
