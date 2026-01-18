@@ -20,11 +20,10 @@ type Package struct {
 }
 
 type SMTPConfig struct {
- Server string
- Port string
- User string
+ Host     string
+ Port     string
+ User     string
  Password string
- To string
 }
 
 type EmailData struct {
