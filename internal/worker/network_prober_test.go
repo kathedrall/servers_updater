@@ -29,11 +29,9 @@ func TestCalculateWorkers(t *testing.T) {
 
  func TestParseLatency(t *testing.T) {
   fakeOutput := `PING 8.8.8.8 (8.8.8.8) 56(84) byts of data.
-    64 bytes from 8.8.8.8: icmp_seq=1 ttl=115 time=14.2 ms
-    64 bytes from 8.8.8.8: icmp_seq=1 ttl=115 time=18.5.ms
-
+    64 bytes from 8.8.8.8: icmp_seq=1 ttl=115 time=50.2 ms
     --- 8.8.8.8 ping statistics ---
-    2 packets trasmitted, 2 received, 0% packet loss, time 1001ms rtt /min/avg/max/mdev = 14.234/16.367/18.5-1/2.133 ms`
+    2 packets trasmitted, 2 received, 0% packet loss, time 1001ms rtt min/avg/max/mdev = 40.00/50.000/60.000/2.133 ms`
 
   latency, err := parseLatency(fakeOutput)
   if err != nil {
