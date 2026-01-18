@@ -24,29 +24,28 @@ func AnalyzeNetwork(ctx context.Context, target string) (NetworkProfile, error) 
  }
 
  cmd := exec.CommandContext(ctx, "ping", "-c", "3", "-q", target)
- out , err := cmd.CombinedOutput()
+ output , err := cmd.CombinedOutput()
  if err != nil {
   return NetworkProfile {
    RTT:              100 * time.Millisecond,
-   PackageLoss:      0,
    SuggestedWorkers: 5,
   }, nil
  } 
 
- rtt, err := parseLatency(output)
+ rtt, err := parseLatency(string(output))
  if err != nil {
   return NetworkProfile{
-   RTT:              100 * time.Millisencond,
+   RTT:              100 * time.Millisecond,
    SuggestedWorkers: 5,
- }, nil
-
+  }, nil
+ }
  workers := calculateWorkers(rtt)
   return NetworkProfile{
     RTT:              rtt,
     SuggestedWorkers: workers,
   }, nil
- }
 }
+
 
 func parseLatency(output string) (time.Duration, error) {
  matches := pingRegex.FindStringSubmatch(output)
