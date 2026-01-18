@@ -23,35 +23,29 @@ func AnalyzeNetwork(ctx context.Context, target string) (NetworkProfile, error) 
   target = TARGET  
  }
 
- output,err := runPingCommand(ctx, target)
- if err != nil {
-  n := NetworkProfile{}
- return n, err
- }
-
- avgRTT, err := parseLatency(output)
- if err != nil {
-  n := NetworkProfile{}
- return n, err
- }
-
- np := NetworkProfile {
-  RTT              : avgRTT,
-  SuggestedWorkers : calculateWorkers(avgRTT),
- }
-
-return np, nil 
-}
-
-func runPingCommand(ctx context.Context, target string) (string, error) {
- cmd := exec.CommandContext(ctx, "ping", "-c", "4", "-i", "0-2", target)
+ cmd := exec.CommandContext(ctx, "ping", "-c", "3", "-q", target)
  out , err := cmd.CombinedOutput()
  if err != nil {
-  n := ""
-  e := fmt.Errorf("ping falied: %w", err)
- return n, e
+  return NetworkProfile {
+   RTT:              100 * time.Millisecond,
+   PackageLoss:      0,
+   SuggestedWorkers: 5,
+  }, nil
+ } 
+
+ rtt, err := parseLatency(output)
+ if err != nil {
+  return NetworkProfile{
+   RTT:              100 * time.Millisencond,
+   SuggestedWorkers: 5,
+ }, nil
+
+ workers := calculateWorkers(rtt)
+  return NetworkProfile{
+    RTT:              rtt,
+    SuggestedWorkers: workers,
+  }, nil
  }
-return string(out), nil
 }
 
 func parseLatency(output string) (time.Duration, error) {
