@@ -23,9 +23,11 @@ func (m *Menu) ShowMainMenu() {
 		DrawHeader("SISTEMA DE GESTAO - MENU PRINCIPAL")
 		fmt.Println(COLOR_YELLOW + "║                                           ║")
 		fmt.Println("║  1. [CONFIG] Definir Credenciais Globais (SSH)           ║")
-		fmt.Println("║  2. [REDE]   Calcular Workers (Throughput Test)          ║")
-		fmt.Println("║  3. [RUN]    Executar Atualização em Lote                ║")
-		fmt.Println("║  4. [SAIR]   Encerrar Sessão                             ║")
+		
+		fmt.Println("|  2. [EMAIL] Configurar Alertas e SMTP         |")
+		fmt.Println("║  3. [REDE]   Calcular Workers (Throughput Test)          ║")
+		fmt.Println("║  4. [RUN]    Executar Atualização em Lote                ║")
+		fmt.Println("║  0. [SAIR]   Encerrar Sessão                             ║")
 		fmt.Println("║                                                          ║" + COLOR_RESET)
 		fmt.Println(COLOR_YELLOW + "╚══════════════════════════════════════════════════════════╝" + COLOR_RESET)
 
@@ -40,15 +42,17 @@ func (m *Menu) ShowMainMenu() {
 
 		switch choice {
 		case 1:
-			m.screenConfig()
+		 m.screenConfig()
 		case 2:
-			m.screenNetworkTest()
-		case 3:
-			m.screenRunUpdate()
+		 ShowEmailConfiguration(m.DB) 
+	        case 3:
+		 m.screenNetworkTest()
 		case 4:
-			fmt.Println("\nEjetando disquete... Até logo!")
-			time.Sleep(1 * time.Second)
-			return
+		 m.screenRunUpdate()
+		case 0:
+		 fmt.Println("\nEjetando disquete... Até logo!")
+		 time.Sleep(1 * time.Second)
+		 return
 		default:
 			fmt.Println(COLOR_RED + "\n [ERRO] Opção Inválida!" + COLOR_RESET)
 			time.Sleep(1 * time.Second)

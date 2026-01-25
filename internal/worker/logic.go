@@ -52,13 +52,46 @@ func ProcessSingleServer(ctx context.Context, host string, database *db.BoltDB, 
 }
 
 func sendErrorNotification(host string, database *db.BoltDB, msg string) {
- cfg, _ := database.GetSMTPConfig()
- notify.SendHtmlEmail(cfg, domain.EmailData{Host: host, Status: "Error", ErrorMessage: msg})
+ cfg, err := database.GetSMTPConfig()
+ if err != nil {
+  return
+ }
+
+ recipients, err := database.ListRecipient()
+ if err != nil  || len(recipients) == 0 {
+  return 
+ }
+ 
+ notify.SendHtmlEmail(
+  cfg,
+  recipients,
+  domain.EmailData{
+   Host: host, 
+   Status: "Error", 
+   ErrorMessage: msg,
+  })
 }
 
 func sendVulnerabilityNotification(host string, database *db.BoltDB, pkgs []domain.Package, msg string) {
- cfg, _ := database.GetSMTPConfig()
- notify.SendHtmlEmail(cfg, domain.EmailData{Host: host, Status: "Vulnerability", Packages: pkgs, ErrorMessage: msg})
+ cfg, err := database.GetSMTPConfig()
+ if err != nil {
+  return
+ }
+ 
+ recipients, err := database.ListRecipient()
+ if err != nil  || len(recipients) == 0 {
+  return 
+ }
+
+ notify.SendHtmlEmail(
+  cfg, 
+  recipients,
+  domain.EmailData{
+   Host: host,
+   Status: "Vulnerability", 
+   Packages: pkgs, 
+   ErrorMessage: msg,
+  })
 }
 
 

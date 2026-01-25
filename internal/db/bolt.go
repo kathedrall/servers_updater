@@ -10,7 +10,6 @@ import (
  "io"
  "servers_updater/internal/domain"
  "time"
- "encoding/json"
  "go.etcd.io/bbolt"
 )
 
@@ -57,45 +56,46 @@ func (db *BoltDB) Close() error {
  return db.conn.Close()
 }
 
-func (db *BoltDB) SaveSMTPConfig(cfg domain.SMTPConfig) error {
- return db.conn.Update(func(tx *bolt.Tx) error {
+func (db *BoltDB) SaveSMTPConfig(config domain.SMTPConfig) error {
+ return db.conn.Update(func(tx *bbolt.Tx) error {
   bucket, err := tx.CreateBucketIfNotExists([]byte(BUCKET_NAME))
   if err != nil {
    return err
   }
   data, _ := json.Marshal(config)
-  return bucket.Put([]byte(SMTP_KEY),data)
+   return bucket.Put([]byte(SMTP_KEY),data)
  })
 }
 
 func (db *BoltDB) GetSMTPConfig() (domain.SMTPConfig, error) {
  var config domain.SMTPConfig
- err := db.conn.View(func(tx *bolt.Tx) error {
+ err := db.conn.View(func(tx *bbolt.Tx) error {
  bucket := tx.Bucket([]byte(BUCKET_NAME))
- if bucket == nil {
-  return fmt.Errorf("Config Bucket not found.")
- }
- data := bucket.Get([]byte(config))
- if data == nil {
-  return fmt.Errorf("no SMTP config found")
- } 
- return json.Unmarshal(v, &config)
+  if bucket == nil {
+   return fmt.Errorf("Config Bucket not found.")
+  }
+ 
+  data := bucket.Get([]byte("smtp_config"))
+   if data == nil {
+    return fmt.Errorf("no SMTP config found")
+   } 
+   return json.Unmarshal(data, &config)
  })
  return config, err
 }
 
 func (db *BoltDB) AddRecipient(email string) error {
- return db.conn.Update(func(tx *bbolt.TX) error {
-  bucket, err := tx.CreateBucketIfNotExists([]byte(BUCKET_RECEPIENTS))
+ return db.conn.Update(func(tx *bbolt.Tx) error {
+ bucket, err := tx.CreateBucketIfNotExists([]byte(BUCKET_RECEPIENTS))
   if err != nil {
    return err
   }
-  return bucket.Put([]byte(email), []byte(email))
+   return bucket.Put([]byte(email), []byte(email))
  })
 }
 
 func (db *BoltDB) RemoveRecipient(email string) error {
- return db.conn.Update(func(tx *bbolt.TX) error {
+ return db.conn.Update(func(tx *bbolt.Tx) error {
   bucket := tx.Bucket([]byte(BUCKET_RECEPIENTS))
   if bucket == nil {
    return nil
@@ -106,13 +106,13 @@ func (db *BoltDB) RemoveRecipient(email string) error {
 
 func (db *BoltDB) ListRecipient() ([]string, error) {
  var emails []string
- err := db.conn.View(func(tx *bbolt.TX) error {
+ err := db.conn.View(func(tx *bbolt.Tx) error {
   bucket := tx.Bucket([]byte(BUCKET_RECEPIENTS))
    if bucket == nil {
     return nil
    }
 
-  return bucket.Foreach(func(k, v []byte) error {
+  return bucket.ForEach(func(k, v []byte) error {
    emails = append(emails, string(v))
    return nil
   })
