@@ -6,9 +6,11 @@ import (
 	"os"
 	"regexp"
 	"servers_updater/internal/domain"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 type SSHClient struct {
@@ -16,6 +18,115 @@ type SSHClient struct {
 }
 type SSHWrapper struct {
 	Client *ssh.Client
+}
+
+func (w *SSHWrapper) ExecuteCommand(cmd string) (string, error) {
+	session, err := w.Client.NewSession()
+	if err != nil {
+		return " ", err
+	}
+	defer session.Close()
+	out, err := session.CombinedOutput(cmd)
+
+	return string(out), err
+}
+
+func (w *SSHWrapper) Close() error {
+	return w.Client.Close()
+}
+
+func formatAddress(host string, port int) string {
+	p := "22"
+	if port > 0 {
+		p = fmt.Sprintf("%d", port)
+	}
+	return net.JoinHostPort(host, p)
+}
+
+func getAuthMethods(m domain.Machine) ([]ssh.AuthMethod, error) {
+	var methods []ssh.AuthMethod
+	if method := trySSHAgent(); method != nil {
+		methods = append(methods, method)
+	}
+
+	if method := tryPrivateKeyFile(m.KeyPath); method != nil {
+		methods = append(methods, method)
+	}
+
+	if method := tryPassword(m.Password); method != nil {
+		methods = append(methods, method)
+	}
+
+	if len(methods) == 0 {
+		e := fmt.Errorf("No valid credential found for %s (no keys or password)", m.Host)
+		return nil, e
+	}
+	return methods, nil
+}
+
+func trySSHAgent() ssh.AuthMethod {
+	sockPath := os.Getenv("SSH_AUTH_SOCK")
+	if sockPath == "" {
+		return nil
+	}
+
+	sock, err := net.Dial("unix", sockPath)
+	if err != nil {
+		return nil
+	}
+
+	return ssh.PublicKeysCallback(agent.NewClient(sock).Signers)
+}
+
+func tryPrivateKeyFile(path string) ssh.AuthMethod {
+	if path == "" {
+		return nil
+	}
+
+	key, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Printf("Warning: The key could not be read in %s", path)
+		return nil
+	}
+
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return nil
+	}
+
+	return ssh.PublicKeys(signer)
+}
+
+func tryPassword(password string) ssh.AuthMethod {
+	if password == "" {
+		return nil
+	}
+
+	return ssh.Password(password)
+}
+
+func Connect(m domain.Machine) (domain.SSHClient, error) {
+	addr := formatAddress(m.Host, m.Port)
+
+	authMethods, err := getAuthMethods(m)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &ssh.ClientConfig{
+		User:            m.User,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         5 * time.Second,
+	}
+
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		e := fmt.Errorf("Falied to connect to %s: %v", addr, err)
+		return nil, e
+	}
+
+	return &SSHWrapper{Client: client}, nil
 }
 
 func NewSSHClient(user string, host string, port string, keyPath string, password string) (*SSHClient, error) {
@@ -58,50 +169,6 @@ func NewSSHClient(user string, host string, port string, keyPath string, passwor
 
 }
 
-func (w *SSHWrapper) ExecuteCommand(cmd string) (string, error) {
-	session, err := w.Client.NewSession()
-	if err != nil {
-		return " ", err
-	}
-	defer session.Close()
-
-	out, err := session.CombinedOutput(cmd)
-	return string(out), err
-
-}
-
-func (w *SSHWrapper) Close() error {
-	return w.Client.Close()
-}
-
-func Connect(m domain.Machine) (domain.SSHClient, error) {
-	key, err := os.ReadFile(m.KeyPath)
-	if err != nil {
-		e := fmt.Errorf("The SSH key could not be read.: %v", err)
-		return nil, e
-	}
-
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		e := fmt.Errorf("Invalid private key: %v", err)
-		return nil, e
-	}
-
-	config := &ssh.ClientConfig{
-		User: m.User,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-
-	client, err := ssh.Dial("tcp", m.Host+":22", config)
-	if err != nil {
-		return nil, err
-	}
-	return &SSHWrapper{Client: client}, nil
-}
-
 func ParseAptOutput(output string) []domain.Package {
 	var pkgs []domain.Package
 	re := regexp.MustCompile(`Inst\s+([^\s]+)\s+\[([^\]]+)\]\s+\(([^\s]+)`)
@@ -115,4 +182,42 @@ func ParseAptOutput(output string) []domain.Package {
 		})
 	}
 	return pkgs
+}
+
+func IdentifyOS(client domain.SSHClient, m *domain.Machine) error {
+	output, err := client.ExecuteCommand("cat /etc/os-release")
+	if err != nil {
+		return err
+	}
+
+	m.PrettyName = ""
+	m.OSName = ""
+	m.IsSupported = false
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		line = strings.ReplaceAll(line, "\"", "")
+
+		if strings.HasPrefix(line, "PETTRY_NAME=") {
+			m.PrettyName = strings.TrimPrefix(line, "PETTRY_NAME=")
+		}
+		if strings.HasPrefix(line, "ID=") {
+			m.OSName = strings.TrimPrefix(line, "ID=")
+		}
+	}
+
+	if m.OSName == "debian" || m.OSName == "ubuntu" {
+		m.IsSupported = true
+	}
+
+	if m.PrettyName == "" {
+		if m.OSName != "" {
+			m.PrettyName = strings.Title(m.OSName)
+		} else {
+			m.PrettyName = "Generic GNU Linux"
+		}
+	}
+
+	return nil
 }
