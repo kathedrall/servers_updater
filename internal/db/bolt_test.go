@@ -121,3 +121,33 @@ func TestPoolLimitPersistence(t *testing.T) {
 		}
 	})
 }
+
+func TestMachineCRUD(t *testing.T) {
+	db, path := setupTestDB(t)
+	defer func() { db.Close(); os.Remove(path) }()
+
+	machine := domain.Machine{
+		Host:       "192.168.1.50",
+		User:       "admin",
+		Port:       22,
+		PrettyName: "Ubuntu 22.04 LTS",
+		Status:     "ONLINE",
+	}
+
+	if err := db.SaveMachine(machine); err != nil {
+		t.Fatalf("Error save machine: %v", err)
+	}
+
+	machines, err := db.GetAllMachines()
+	if err != nil {
+		t.Fatalf("Error reading the machines: %v", err)
+	}
+
+	if len(machines) != 1 {
+		t.Errorf("waiting for 1 machine, bug return %d:", len(machines))
+	}
+
+	if machines[0].Host != machine.Host {
+		t.Errorf("Corrupted data. I was expecting host %s, but received %s", machine.Host, machines[0].Host)
+	}
+}

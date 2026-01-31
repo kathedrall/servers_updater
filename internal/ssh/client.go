@@ -11,6 +11,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type SSHClient struct {
@@ -199,8 +202,8 @@ func IdentifyOS(client domain.SSHClient, m *domain.Machine) error {
 		line = strings.TrimSpace(line)
 		line = strings.ReplaceAll(line, "\"", "")
 
-		if strings.HasPrefix(line, "PETTRY_NAME=") {
-			m.PrettyName = strings.TrimPrefix(line, "PETTRY_NAME=")
+		if strings.HasPrefix(line, "PRETTY_NAME=") {
+			m.PrettyName = strings.TrimPrefix(line, "PRETTY_NAME=")
 		}
 		if strings.HasPrefix(line, "ID=") {
 			m.OSName = strings.TrimPrefix(line, "ID=")
@@ -213,7 +216,7 @@ func IdentifyOS(client domain.SSHClient, m *domain.Machine) error {
 
 	if m.PrettyName == "" {
 		if m.OSName != "" {
-			m.PrettyName = strings.Title(m.OSName)
+			m.PrettyName = cases.Title(language.Und).String(m.OSName)
 		} else {
 			m.PrettyName = "Generic GNU Linux"
 		}
