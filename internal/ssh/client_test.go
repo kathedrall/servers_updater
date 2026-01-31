@@ -68,7 +68,7 @@ func TestIdentifyOs(t *testing.T) {
 		mock := &MockSSHClient{Err: errors.New("connection failed")}
 		machine := &domain.Machine{}
 		err := IdentifyOS(mock, machine)
-		if err != nil {
+		if err == nil {
 			t.Errorf("Expected error, got nil")
 		}
 	})

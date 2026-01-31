@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"servers_updater/internal/domain"
 	"strings"
 	"time"
+
+	"github.com/kevinburke/ssh_config"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -36,6 +39,54 @@ func (w *SSHWrapper) ExecuteCommand(cmd string) (string, error) {
 
 func (w *SSHWrapper) Close() error {
 	return w.Client.Close()
+}
+
+func resolveHostConfig(m *domain.Machine) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	configPath := filepath.Join(home, ".ssh", "config")
+	f, err := os.Open(configPath)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	cfg, err := ssh_config.Decode(f)
+	if err != nil {
+		return
+	}
+
+	realHost, _ := cfg.Get(m.Host, "Hostname")
+	if realHost != "" {
+		m.Host = realHost
+	}
+
+	if m.User == "" {
+		user, _ := cfg.Get(m.Host, "User")
+		if user != "" {
+			m.User = user
+		}
+	}
+
+	if m.KeyPath == "" {
+		keyFile, _ := cfg.Get(m.Host, "IdentityFile")
+		if keyFile != "" && keyFile != "˜./.ssh/identity" {
+			if strings.HasPrefix(keyFile, "˜/") {
+				keyFile = filepath.Join(home, keyFile[2:])
+			}
+			m.KeyPath = keyFile
+		}
+	}
+
+	if m.Port == 0 {
+		portStr, _ := cfg.Get(m.Host, "Port")
+		if portStr != "" {
+			fmt.Scanf(portStr, "%d", &m.Port)
+		}
+	}
 }
 
 func formatAddress(host string, port int) string {
@@ -109,6 +160,8 @@ func tryPassword(password string) ssh.AuthMethod {
 }
 
 func Connect(m domain.Machine) (domain.SSHClient, error) {
+	resolveHostConfig(&m)
+
 	addr := formatAddress(m.Host, m.Port)
 
 	authMethods, err := getAuthMethods(m)

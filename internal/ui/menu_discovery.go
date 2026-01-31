@@ -13,7 +13,7 @@ import (
 const LIMIT_WORKERS = 10
 
 func (m *Menu) screenConfig() {
-	for {	
+	for {
 		ClearScreen()
 		DrawHeader("Gestao de hosts & Discovery")
 
@@ -61,7 +61,7 @@ func (m *Menu) runDiscoveryRoutine() {
 		limitWorkes = poolLimit
 	}
 
-	fmt.Println("\n Calibragem de rede (Pool) %s%d Workers simultaneos%s", COLOR_GREEN, limitWorkes, COLOR_RESET)
+	fmt.Printf("\n Calibragem de rede (Pool) %s%d Workers simultaneos%s", COLOR_GREEN, limitWorkes, COLOR_RESET)
 	fmt.Printf("\n >> Iniciando scan em %d servidores Gnu Linux... \n\n", len(machines))
 
 	var wg sync.WaitGroup
@@ -136,7 +136,7 @@ func (m *Menu) runDiscoveryRoutine() {
 func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
 	fmt.Println("\nInfrastructure Report")
 	fmt.Println("================================================================================================")
-	fmt.Println("$%-16s | %-10s | %-30s | %-12s | %s5s\n", "HOST", "USER", "SISTEMA (DETECTED)", "STATUS", "SUP")
+	fmt.Printf("$%-16s | %-10s | %-30s | %-12s | %s5s\n", "HOST", "USER", "SISTEMA (DETECTED)", "STATUS", "SUP")
 	fmt.Println("================================================================================================")
 
 	for _, mac := range machines {
@@ -159,7 +159,7 @@ func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
 			color = COLOR_GREEN
 		}
 
-		fmt.Println("$%-16s | %-10s | %-30s | %-12s | %s5s\n", color, mac.Host, mac.User, mac.PrettyName, statusVis, support, COLOR_RESET)
+		fmt.Printf("$%-16s | %-10s | %-30s | %-12s | %-5s%s\n", color, mac.Host, mac.User, mac.PrettyName, statusVis, support, COLOR_RESET)
 	}
 	fmt.Println("================================================================================================")
 }
