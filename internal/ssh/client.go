@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"servers_updater/internal/domain"
 	"strings"
 	"time"
@@ -223,21 +222,6 @@ func NewSSHClient(user string, host string, port string, keyPath string, passwor
 		Client: client,
 	}, nil
 
-}
-
-func ParseAptOutput(output string) []domain.Package {
-	var pkgs []domain.Package
-	re := regexp.MustCompile(`Inst\s+([^\s]+)\s+\[([^\]]+)\]\s+\(([^\s]+)`)
-	matches := re.FindAllStringSubmatch(output, -1)
-
-	for _, m := range matches {
-		pkgs = append(pkgs, domain.Package{
-			Name:           m[1],
-			CurrentVersion: m[2],
-			NewVersion:     m[3],
-		})
-	}
-	return pkgs
 }
 
 func IdentifyOS(client domain.SSHClient, m *domain.Machine) error {
