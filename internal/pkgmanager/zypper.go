@@ -16,7 +16,7 @@ func (m *ZypperManager) GetInstallCommand() string {
 	return CommandUpdate[3]
 }
 
-func (m *ZypperManager) ParseAptOutput(output string) ([]domain.Package, error) {
+func (m *ZypperManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 
 	re := regexp.MustCompile(`\|\s+([^\s|]+)\s+\|\s+([^\s|]+)\s+\|\s+([^\s|]+)\s+\|\s+[^\s|]+\s*$`)

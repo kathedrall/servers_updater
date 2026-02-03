@@ -16,7 +16,7 @@ func (m *EmergeManager) GetInstallCommand() string {
 	return CommandUpdate[5]
 }
 
-func (m *EmergeManager) ParseAptOutput(output string) ([]domain.Package, error) {
+func (m *EmergeManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 
 	re := regexp.MustCompile(`\[ebuild\s+([A-Z]+)\s*\]\s+(\S+)`)

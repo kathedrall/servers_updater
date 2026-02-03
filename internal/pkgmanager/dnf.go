@@ -16,7 +16,7 @@ func (m *DnfManager) GetInstallCommand() string {
 	return CommandUpdate[0]
 }
 
-func (m *DnfManager) ParseAptOutput(output string) ([]domain.Package, error) {
+func (m *DnfManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 
 	re := regexp.MustCompile(`^(\S+)\s+(\S+)\s+(\S+)`)

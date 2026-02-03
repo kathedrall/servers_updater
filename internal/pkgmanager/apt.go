@@ -15,7 +15,7 @@ func (m *AptManager) GetInstallCommand() string {
 	return CommandUpdate[2]
 }
 
-func (m *AptManager) ParseAptOutput(output string) ([]domain.Package, error) {
+func (m *AptManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 	re := regexp.MustCompile(`Inst\s+([^\s]+)\s+\[([^\]]+)\]\s+\(([^\s]+)`)
 	matches := re.FindAllStringSubmatch(output, -1)

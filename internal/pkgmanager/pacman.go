@@ -16,11 +16,10 @@ func (m *PacmanManager) GetInstallCommand() string {
 	return CommandUpdate[4]
 }
 
-func (m *PacmanManager) ParseAptOutput(output string) ([]domain.Package, error) {
+func (m *PacmanManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 
-	re := regexp.MustCompile(`ˆ(\S+)\s+(\S+)\s+->\s+(\S+)`)
-
+	re := regexp.MustCompile(`^\s*(\S+)\s+(\S+)\s+->\s+(\S+)`)
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)

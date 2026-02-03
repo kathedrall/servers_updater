@@ -16,11 +16,10 @@ func (m *FreebsdManager) GetInstallCommand() string {
 	return CommandUpdate[6]
 }
 
-func (m *FreebsdManager) ParseAptOutput(output string) ([]domain.Package, error) {
+func (m *FreebsdManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 
-	re := regexp.MustCompile(`\s*([ˆ\s:]+):\s+([ˆ\s]+)\s+->\s+([ˆ\s]+)`)
-
+	re := regexp.MustCompile(`^\s*(\S+):\s+(\S+)\s+->\s+(\S+)`)
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, "The following") || strings.Contains(line, "Numver of packages") {

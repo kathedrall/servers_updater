@@ -15,7 +15,7 @@ func (m *ApkManager) GetInstallCommand() string {
 	return CommandUpdate[1]
 }
 
-func (m *ApkManager) ParseAptOutput(output string) ([]domain.Package, error) {
+func (m *ApkManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 
 	lines := strings.Split(output, "\n")

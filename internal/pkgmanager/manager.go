@@ -29,7 +29,7 @@ var (
 type PackageManager interface {
 	GetCheckCommand() string
 	GetInstallCommand() string
-	ParseAptOutput(output string) ([]domain.Package, error)
+	ParseOutput(output string) ([]domain.Package, error)
 }
 
 func GetManager(osName string) (PackageManager, error) {
