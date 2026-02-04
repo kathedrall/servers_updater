@@ -75,6 +75,8 @@ func resolveHostConfig(m *domain.Machine) {
 		if keyFile != "" && keyFile != "˜./.ssh/identity" {
 			if strings.HasPrefix(keyFile, "˜/") {
 				keyFile = filepath.Join(home, keyFile[2:])
+			} else if strings.HasPrefix(keyFile, "˜\\") {
+				keyFile = filepath.Join(home, keyFile[2:])
 			}
 			m.KeyPath = keyFile
 		}
@@ -83,7 +85,7 @@ func resolveHostConfig(m *domain.Machine) {
 	if m.Port == 0 {
 		portStr, _ := cfg.Get(m.Host, "Port")
 		if portStr != "" {
-			fmt.Scanf(portStr, "%d", &m.Port)
+			fmt.Sscanf(portStr, "%d", &m.Port)
 		}
 	}
 }

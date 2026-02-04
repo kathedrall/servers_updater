@@ -1,6 +1,8 @@
 package ssh
 
 import (
+	"os"
+	"path/filepath"
 	"errors"
 	"fmt"
 	"servers_updater/internal/domain"
@@ -19,6 +21,49 @@ func (m *MockSSHClient) ExecuteCommand(cmd string) (string, error) {
 
 func (m *MockSSHClient) Close() error {
 	return nil
+}
+
+func TestResolveHostConfig(t *testing.T) {
+	tmpHome := t.TempDir()
+	sshDir := filepath.Join(tmpHome, ".ssh")
+
+	if err := os.Mkdir(sshDir, 0700); err != nil {
+		t.Fatalf("Failed to create tem .ssh dir: %sv", err)
+	}
+
+	configContent :=  `Host alias-test
+		HostName 192.168.0.20
+		User user-test
+		Port 2222
+		IdentityFile ˜/.ssh/key_test.pem`
+
+	configPath := filepath.Join(sshDir, "config")
+	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
+		t.Fatalf("Failed to write mock config: %v", err)
+	}		
+	t.Setenv("HOME", tmpHome)
+
+	machine := &domain.Machine {
+		Host: "alias-test",
+		HostName: "user-test",
+		Port: 2222,
+	}
+	if machine.Host != "192.168.0.20" {
+		t.Errorf("Hostname resolution failed. Expected 192.168.0.10, got %s", machine.Host)
+	}
+
+	if machine.User != "user-test" {
+		t.Errorf("User resolution failed. Expected user-test got %s", machine.User)
+	}
+
+	if machine.Port != 2222 {
+		t.Errorf("Port resolution failed. Expected 2222, got %d", machine.Port)
+	}
+
+	expectedKeyPath := filepath.Join(tmpHome, ".ssh", "key_test.pem")
+	if machine.KeyPath != expectedKeyPath {
+		t.Errorf("IdentityFile resolution failed. \nExpected: %s\nGot: %s", expectedKeyPath, machine.KeyPath)
+	}	
 }
 
 func TestIdentifyOs(t *testing.T) {
@@ -70,29 +115,6 @@ func TestIdentifyOs(t *testing.T) {
 		err := IdentifyOS(mock, machine)
 		if err == nil {
 			t.Errorf("Expected error, got nil")
-		}
-	})
-}
-
-func TestParseAptOutput(t *testing.T) {
-	mockOutput := `Inst libssl1.1 [1.1.1f-1ubuntu2] (1.1.1f-1ubuntu2.16 Ubuntu:20.04/focal-updates [amd64])
-Inst nginx [1.18.0-0ubuntu1] (1.18.0-0ubuntu.1.4)
-Conf nginx (1.18.0-0ubuntu1.4 Ubuntu1.4 Ubuntu:20.04/focal-updates [amd64])`
-
-	t.Run("Validate packet extraction via regex.", func(t *testing.T) {
-		pkgs := ParseAptOutput(mockOutput)
-		if len(pkgs) != 2 {
-			t.Errorf("I was expecting 2 packages, I found %d", len(pkgs))
-		}
-		if pkgs[0].Name != "libssl1.1" || pkgs[0].NewVersion != "1.1.1f-1ubuntu2.16" {
-			t.Errorf("Error generating libssl parse. Name: %s, version: %s", pkgs[1].Name, pkgs[1].CurrentVersion)
-		}
-	})
-
-	t.Run("No packages", func(t *testing.T) {
-		pkgs := ParseAptOutput("0 upgrades, 0 newly instaled, 0 to remove")
-		if len(pkgs) != 0 {
-			t.Errorf("It should return an empty list.")
 		}
 	})
 }

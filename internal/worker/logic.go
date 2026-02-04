@@ -39,7 +39,7 @@ func ProcessSingleServer(ctx context.Context, host string, database *db.BoltDB, 
 		return err
 	}
 
-	packages, err := manager.ParseAptOutput(output)
+	packages, err := manager.ParseOutput(output)
 	if err != nil {
 		e := fmt.Errorf("Error no parse: %v", err)
 		return e
