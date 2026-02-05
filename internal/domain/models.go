@@ -3,13 +3,14 @@ package domain
 import "time"
 
 type Machine struct {
-	ID           string `json:"id"`
-	Host         string `json:"host"`
-	User         string `json:"user"`
-	Port         int    `json:"port"`
-	Password     string `json:"password"`
-	KeyPath      string `json:"key_path"`
-	IsVulnerable bool   `json:"is_vulnerable"`
+	ID           string  `json:"id"`
+	Host         string  `json:"host"`
+	User         string  `json:"user"`
+	Port         int     `json:"port"`
+	Password     string  `json:"password"`
+	KeyPath      string  `json:"key_path"`
+	IsVulnerable bool    `json:"is_vulnerable"`
+	ProxyJumper  *string `json:"proxy_jumper"`
 
 	OSName      string    `json:"os_name"`
 	OSVersion   string    `json:"os_version"`

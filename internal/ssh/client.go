@@ -28,6 +28,12 @@ type Wrapper struct {
 	Client *ssh.Client
 }
 
+// ProxyWrapper wraps an SSH connection through a proxy jump
+type ProxyWrapper struct {
+	TargetClient *ssh.Client
+	JumpClient   domain.SSHClient
+}
+
 // ExecuteCommand executes a command via SSH and returns the output
 func (w *Wrapper) ExecuteCommand(cmd string) (string, error) {
 	session, err := w.Client.NewSession()
@@ -43,6 +49,31 @@ func (w *Wrapper) ExecuteCommand(cmd string) (string, error) {
 // Close closes the SSH connection
 func (w *Wrapper) Close() error {
 	return w.Client.Close()
+}
+
+// ExecuteCommand executes a command via SSH through proxy and returns the output
+func (p *ProxyWrapper) ExecuteCommand(cmd string) (string, error) {
+	session, err := p.TargetClient.NewSession()
+	if err != nil {
+		return " ", err
+	}
+	defer session.Close()
+	out, err := session.CombinedOutput(cmd)
+
+	return string(out), err
+}
+
+// Close closes both target and jump SSH connections
+func (p *ProxyWrapper) Close() error {
+	// Fechar conexão do target primeiro
+	if p.TargetClient != nil {
+		p.TargetClient.Close()
+	}
+	// Depois fechar conexão do jump host
+	if p.JumpClient != nil {
+		p.JumpClient.Close()
+	}
+	return nil
 }
 
 func formatAddress(host string, port int) string {
@@ -89,7 +120,7 @@ func trySSHAgent() ssh.AuthMethod {
 	agentClient := agent.NewClient(sock)
 	signers, err := agentClient.Signers()
 	if err != nil || len(signers) == 0 {
-		return nil // Só retorna método se realmente tiver chaves
+		return nil
 	}
 
 	return ssh.PublicKeys(signers...)
@@ -125,6 +156,17 @@ func tryPassword(password string) ssh.AuthMethod {
 func Connect(m domain.Machine) (domain.SSHClient, error) {
 	resolveHostConfig(&m)
 
+	// Se tem ProxyJump, usar conexão via proxy
+	if m.ProxyJumper != nil {
+		return connectWithProxyJump(m)
+	}
+
+	// Conexão direta normal
+	return connectDirect(m)
+}
+
+// connectDirect estabelece conexão SSH direta
+func connectDirect(m domain.Machine) (domain.SSHClient, error) {
 	addr := formatAddress(m.Host, m.Port)
 
 	authMethods, err := getAuthMethods(m)
@@ -146,6 +188,62 @@ func Connect(m domain.Machine) (domain.SSHClient, error) {
 	}
 
 	return &Wrapper{Client: client}, nil
+}
+
+// connectWithProxyJump estabelece conexão SSH via ProxyJump
+func connectWithProxyJump(target domain.Machine) (domain.SSHClient, error) {
+	// 1. Resolver configuração do jump host
+	jumpMachine := domain.Machine{
+		ID:   *target.ProxyJumper,
+		Host: *target.ProxyJumper,
+	}
+	resolveHostConfig(&jumpMachine)
+
+	// 2. Conectar no jump host
+	jumpClient, err := connectDirect(jumpMachine)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to jump host %s: %v", *target.ProxyJumper, err)
+	}
+
+	// 3. Criar tunnel através do jump host
+	targetAddr := formatAddress(target.Host, target.Port)
+	conn, err := jumpClient.(*Wrapper).Client.Dial("tcp", targetAddr)
+	if err != nil {
+		jumpClient.Close()
+		return nil, fmt.Errorf("failed to dial target %s through jump host: %v", targetAddr, err)
+	}
+
+	// 4. Configurar autenticação para o target
+	authMethods, err := getAuthMethods(target)
+	if err != nil {
+		conn.Close()
+		jumpClient.Close()
+		return nil, err
+	}
+
+	config := &ssh.ClientConfig{
+		User:            target.User,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         5 * time.Second,
+	}
+
+	// 5. Estabelecer conexão SSH no target através do tunnel
+	clientConn, chans, reqs, err := ssh.NewClientConn(conn, targetAddr, config)
+	if err != nil {
+		conn.Close()
+		jumpClient.Close()
+		return nil, fmt.Errorf("failed to establish SSH connection to target: %v", err)
+	}
+
+	// 6. Criar cliente SSH para o target
+	targetClient := ssh.NewClient(clientConn, chans, reqs)
+
+	// 7. Retornar wrapper que gerencia ambas as conexões
+	return &ProxyWrapper{
+		TargetClient: targetClient,
+		JumpClient:   jumpClient,
+	}, nil
 }
 
 // LoadMachinesFromSSHConfig loads machine configurations from SSH config file
@@ -215,6 +313,12 @@ func resolveHostConfig(m *domain.Machine) {
 		return
 	}
 
+	if proxyJump, _ := cfg.Get(m.Host, "ProxyJump"); proxyJump != "" {
+		fmt.Printf("DEBUG: ProxyJump detectado para %s: %s\n", m.Host, proxyJump)
+		m.ProxyJumper = &proxyJump
+	} else {
+		fmt.Printf("DEBUG: Nenhum ProxyJump encontrado para %s\n", m.Host)
+	}
 	if m.KeyPath == "" {
 		keyFile, _ := cfg.Get(m.Host, "IdentityFile")
 		if keyFile != "" && keyFile != "~/.ssh/identity" {
@@ -248,6 +352,8 @@ func resolveHostConfig(m *domain.Machine) {
 	if realHost != "" {
 		m.Host = realHost
 	}
+
+	// Detectar ProxyJump
 
 }
 

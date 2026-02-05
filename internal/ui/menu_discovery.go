@@ -155,9 +155,9 @@ func (m *Menu) runDiscoveryRoutine() {
 
 func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
 	fmt.Println("\nInfrastructure Report")
-	fmt.Println("================================================================================================")
-	fmt.Printf("$%-16s | %-10s | %-30s | %-12s | %s5s\n", "HOST", "USER", "SISTEMA (DETECTED)", "STATUS", "SUP")
-	fmt.Println("================================================================================================")
+	fmt.Println("========================================================================================================")
+	fmt.Printf("%-16s | %-10s | %-30s | %-12s | %s5s | %-5s\n", "HOST", "USER", "SISTEMA (DETECTED)", "STATUS", "SUP", "JUMPER PROXY")
+	fmt.Println("========================================================================================================")
 
 	for _, mac := range machines {
 		support := "[--]"
@@ -165,6 +165,10 @@ func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
 			support = "[OK]"
 		} else if mac.Status == "ONLINE" && !mac.IsSupported {
 			support = "[!!]"
+		}
+		jumper := "[--]"
+		if mac.ProxyJumper != nil {
+			jumper = *mac.ProxyJumper
 		}
 
 		statusVis := mac.Status
@@ -183,9 +187,9 @@ func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
 		if mac.User != "" {
 			userStr = mac.User
 		}
-		fmt.Printf("%s%-16s | %-10s | %-30s | %-12s | %-5s%s\n", color, mac.Host, userStr, mac.PrettyName, statusVis, support, COLOR_RESET)
+		fmt.Printf("%s%-16s | %-10s | %-30s | %-12s | %-5s | %-5s%5s\n", color, mac.Host, userStr, mac.PrettyName, statusVis, support, jumper, COLOR_RESET)
 	}
-	fmt.Println("================================================================================================")
+	fmt.Println("========================================================================================================")
 }
 
 func (m *Menu) waitEnter() {
