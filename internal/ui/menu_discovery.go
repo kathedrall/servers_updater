@@ -16,15 +16,22 @@ func (m *Menu) screenConfig() {
 	for {
 		ClearScreen()
 		DrawHeader("Gestao de hosts & Discovery")
+		dbMachines, _ := m.DB.GetAllMachines()
+		sshMachines, err := ssh.LoadMachinesFromSSHConfig()
 
-		machines, _ := m.DB.GetAllMachines()
-		fmt.Printf("\n [INFO %d Hosts cadastrados na base de dados\n]", len(machines))
-		fmt.Println("\n [ACOES DISPONIVEIS]:")
+		fmt.Printf("\n [INFO] %d Hosts no banco de dados", len(dbMachines))
+		if err == nil {
+			fmt.Printf("\n [INFO] %d Hosts encontrados no ~/.ssh/config", len(sshMachines))
+		} else {
+			fmt.Printf("\n [WARN] Erro ao ler ~/.ssh/config: %v", err)
+		}
+
+		fmt.Println("\n\n [ACOES DISPONIVEIS]:")
 		fmt.Println(" 1. [SCAN] Iniciar Discovery (Atualizar status OS)")
 		fmt.Println(" 2. [NOVO] Adicionar Host Manualmente")
 		fmt.Println(" 0. Voltar ao menu Principal")
 
-		fmt.Println("\n > ")
+		fmt.Print("\n > ")
 		var opt int
 		fmt.Scanln(&opt)
 
@@ -32,7 +39,7 @@ func (m *Menu) screenConfig() {
 		case 1:
 			m.runDiscoveryRoutine()
 		case 2:
-			fmt.Println("Funcao de cadatro manual")
+			fmt.Println("Funcao de cadastro manual")
 		case 0:
 			return
 		default:
@@ -48,12 +55,25 @@ func (m *Menu) runDiscoveryRoutine() {
 	fmt.Println(" TURBO DISCOVERY: VARREDURA DE REDE")
 	fmt.Println("==============================================================")
 
-	machines, err := m.DB.GetAllMachines()
-	if err != nil || len(machines) == 0 {
-		fmt.Println(COLOR_RED + "\n [!] Nenhuma maquina encontrada." + COLOR_RESET)
-		fmt.Println(" Adicione IPs primeiro via ˜/.ssh/config ou importacao.")
-		m.waitEnter()
-		return
+	machines, err := ssh.LoadMachinesFromSSHConfig()
+	if err != nil {
+		fmt.Printf(COLOR_YELLOW+"\n [WARN] Erro ao ler ~/.ssh/config: %v"+COLOR_RESET+"\n", err)
+		fmt.Println(" Tentando carregar do banco de dados...")
+
+		machines, err = m.DB.GetAllMachines()
+		if err != nil || len(machines) == 0 {
+			fmt.Println(COLOR_RED + "\n [!] Nenhuma máquina encontrada no banco e no ~/.ssh/config." + COLOR_RESET)
+			fmt.Println(" Adicione hosts primeiro via ~/.ssh/config ou importação manual.")
+			m.waitEnter()
+			return
+		}
+		fmt.Printf(COLOR_GREEN+" [OK] Carregadas %d máquinas do banco de dados"+COLOR_RESET+"\n", len(machines))
+	} else {
+		fmt.Printf(COLOR_GREEN+" [OK] Carregadas %d máquinas do ~/.ssh/config"+COLOR_RESET+"\n", len(machines))
+
+		for _, machine := range machines {
+			m.DB.SaveMachine(machine)
+		}
 	}
 
 	limitWorkes := LIMIT_WORKERS
@@ -159,7 +179,11 @@ func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
 			color = COLOR_GREEN
 		}
 
-		fmt.Printf("$%-16s | %-10s | %-30s | %-12s | %-5s%s\n", color, mac.Host, mac.User, mac.PrettyName, statusVis, support, COLOR_RESET)
+		userStr := ""
+		if mac.User != "" {
+			userStr = mac.User
+		}
+		fmt.Printf("%s%-16s | %-10s | %-30s | %-12s | %-5s%s\n", color, mac.Host, userStr, mac.PrettyName, statusVis, support, COLOR_RESET)
 	}
 	fmt.Println("================================================================================================")
 }

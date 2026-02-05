@@ -1,10 +1,10 @@
 package notify
 
 import (
- "testing"
- "time"
- "servers_updater/internal/domain"
- "os"
+	"os"
+	"servers_updater/internal/domain"
+	"testing"
+	"time"
 )
 
 func TestSendHtmlEmail_Validation(t *testing.T) {
@@ -17,7 +17,7 @@ func TestSendHtmlEmail_Validation(t *testing.T) {
  }
 
  err := SendHtmlEmail(config, []string{}, data)
- if err != nil {
+ if err == nil {
   t.Error("Expected error for empty recepients list, got nil")
  } else if err.Error() != "no recipients provided" {
   t.Errorf("Unexpected error message: %v", err)

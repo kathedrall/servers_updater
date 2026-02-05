@@ -1,18 +1,18 @@
 package notify
 
 import (
- "bytes"
- "servers_updater/internal/domain"
- "servers_updater/internal/templates"
- "fmt"
- "net/smtp"
- "time"
- "strings"
+	"bytes"
+	"fmt"
+	"net/smtp"
+	"servers_updater/internal/domain"
+	"servers_updater/internal/templates"
+	"strings"
+	"time"
 )
 
 func SendHtmlEmail(cfg domain.SMTPConfig, recipients []string,   data domain.EmailData) error {
  if len(recipients) == 0 {
-  return fmt.Errorf("No recipients provided")
+  return fmt.Errorf("no recipients provided")
  } 
 
  now := time.Now().UTC()

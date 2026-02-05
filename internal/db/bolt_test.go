@@ -126,10 +126,12 @@ func TestMachineCRUD(t *testing.T) {
 	db, path := setupTestDB(t)
 	defer func() { db.Close(); os.Remove(path) }()
 
+	userPtr := "admin"
+	portPtr := 22
 	machine := domain.Machine{
 		Host:       "192.168.1.50",
-		User:       "admin",
-		Port:       22,
+		User:       userPtr,
+		Port:       portPtr,
 		PrettyName: "Ubuntu 22.04 LTS",
 		Status:     "ONLINE",
 	}

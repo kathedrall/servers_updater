@@ -93,8 +93,8 @@ func (db *BoltDB) SaveMachine(m domain.Machine) error {
 		}
 
 		key := m.Host
-		if m.Id != "" {
-			key = m.Id
+		if m.ID != "" {
+			key = m.ID
 		}
 
 		data, err := json.Marshal(m)

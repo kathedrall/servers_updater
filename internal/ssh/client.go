@@ -18,14 +18,18 @@ import (
 	"golang.org/x/text/language"
 )
 
-type SSHClient struct {
-	Client *ssh.Client
-}
-type SSHWrapper struct {
+// Client represents an SSH client connection
+type Client struct {
 	Client *ssh.Client
 }
 
-func (w *SSHWrapper) ExecuteCommand(cmd string) (string, error) {
+// Wrapper wraps an SSH client connection
+type Wrapper struct {
+	Client *ssh.Client
+}
+
+// ExecuteCommand executes a command via SSH and returns the output
+func (w *Wrapper) ExecuteCommand(cmd string) (string, error) {
 	session, err := w.Client.NewSession()
 	if err != nil {
 		return " ", err
@@ -36,58 +40,9 @@ func (w *SSHWrapper) ExecuteCommand(cmd string) (string, error) {
 	return string(out), err
 }
 
-func (w *SSHWrapper) Close() error {
+// Close closes the SSH connection
+func (w *Wrapper) Close() error {
 	return w.Client.Close()
-}
-
-func resolveHostConfig(m *domain.Machine) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return
-	}
-
-	configPath := filepath.Join(home, ".ssh", "config")
-	f, err := os.Open(configPath)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	cfg, err := ssh_config.Decode(f)
-	if err != nil {
-		return
-	}
-
-	realHost, _ := cfg.Get(m.Host, "Hostname")
-	if realHost != "" {
-		m.Host = realHost
-	}
-
-	if m.User == "" {
-		user, _ := cfg.Get(m.Host, "User")
-		if user != "" {
-			m.User = user
-		}
-	}
-
-	if m.KeyPath == "" {
-		keyFile, _ := cfg.Get(m.Host, "IdentityFile")
-		if keyFile != "" && keyFile != "˜./.ssh/identity" {
-			if strings.HasPrefix(keyFile, "˜/") {
-				keyFile = filepath.Join(home, keyFile[2:])
-			} else if strings.HasPrefix(keyFile, "˜\\") {
-				keyFile = filepath.Join(home, keyFile[2:])
-			}
-			m.KeyPath = keyFile
-		}
-	}
-
-	if m.Port == 0 {
-		portStr, _ := cfg.Get(m.Host, "Port")
-		if portStr != "" {
-			fmt.Sscanf(portStr, "%d", &m.Port)
-		}
-	}
 }
 
 func formatAddress(host string, port int) string {
@@ -100,6 +55,7 @@ func formatAddress(host string, port int) string {
 
 func getAuthMethods(m domain.Machine) ([]ssh.AuthMethod, error) {
 	var methods []ssh.AuthMethod
+
 	if method := trySSHAgent(); method != nil {
 		methods = append(methods, method)
 	}
@@ -130,7 +86,13 @@ func trySSHAgent() ssh.AuthMethod {
 		return nil
 	}
 
-	return ssh.PublicKeysCallback(agent.NewClient(sock).Signers)
+	agentClient := agent.NewClient(sock)
+	signers, err := agentClient.Signers()
+	if err != nil || len(signers) == 0 {
+		return nil // Só retorna método se realmente tiver chaves
+	}
+
+	return ssh.PublicKeys(signers...)
 }
 
 func tryPrivateKeyFile(path string) ssh.AuthMethod {
@@ -140,7 +102,6 @@ func tryPrivateKeyFile(path string) ssh.AuthMethod {
 
 	key, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Printf("Warning: The key could not be read in %s", path)
 		return nil
 	}
 
@@ -160,6 +121,7 @@ func tryPassword(password string) ssh.AuthMethod {
 	return ssh.Password(password)
 }
 
+// Connect establishes an SSH connection to the given machine
 func Connect(m domain.Machine) (domain.SSHClient, error) {
 	resolveHostConfig(&m)
 
@@ -183,10 +145,114 @@ func Connect(m domain.Machine) (domain.SSHClient, error) {
 		return nil, e
 	}
 
-	return &SSHWrapper{Client: client}, nil
+	return &Wrapper{Client: client}, nil
 }
 
-func NewSSHClient(user string, host string, port string, keyPath string, password string) (*SSHClient, error) {
+// LoadMachinesFromSSHConfig loads machine configurations from SSH config file
+func LoadMachinesFromSSHConfig() ([]domain.Machine, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("erro ao obter diretório home: %v", err)
+	}
+
+	configPath := filepath.Join(home, ".ssh", "config")
+	f, err := os.Open(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao abrir %s: %v", configPath, err)
+	}
+	defer f.Close()
+
+	cfg, err := ssh_config.Decode(f)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao decodificar arquivo SSH config: %v", err)
+	}
+
+	var machines []domain.Machine
+	hosts := cfg.Hosts
+
+	for _, host := range hosts {
+		for _, pattern := range host.Patterns {
+			if pattern.String() != "*" && !strings.Contains(pattern.String(), "*") {
+				machine := domain.Machine{
+					ID:     pattern.String(),
+					Host:   pattern.String(),
+					Status: "UNKNOWN",
+				}
+				resolveHostConfig(&machine)
+				if machine.User == "" {
+					if currentUser := os.Getenv("User"); currentUser != "" {
+						machine.User = currentUser
+					}
+				}
+				if machine.Port == 0 {
+					defaultPort := 22
+					machine.Port = defaultPort
+				}
+				machines = append(machines, machine)
+				break
+			}
+		}
+	}
+
+	return machines, nil
+}
+
+func resolveHostConfig(m *domain.Machine) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	configPath := filepath.Join(home, ".ssh", "config")
+	f, err := os.Open(configPath)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	cfg, err := ssh_config.Decode(f)
+	if err != nil {
+		return
+	}
+
+	if m.KeyPath == "" {
+		keyFile, _ := cfg.Get(m.Host, "IdentityFile")
+		if keyFile != "" && keyFile != "~/.ssh/identity" {
+			// Expandir ~ para home directory
+			if strings.HasPrefix(keyFile, "~/") {
+				keyFile = filepath.Join(home, keyFile[2:])
+			} else if strings.HasPrefix(keyFile, "~\\") {
+				keyFile = filepath.Join(home, keyFile[2:])
+			}
+			m.KeyPath = keyFile
+		}
+	}
+
+	if m.Port == 0 {
+		portStr, _ := cfg.Get(m.Host, "Port")
+		if portStr != "" {
+			var port int
+			if _, err := fmt.Sscanf(portStr, "%d", &port); err == nil {
+				m.Port = port
+			}
+		}
+	}
+	if m.User == "" {
+		user, _ := cfg.Get(m.Host, "User")
+		if user != "" {
+			m.User = user
+		}
+	}
+
+	realHost, _ := cfg.Get(m.Host, "Hostname")
+	if realHost != "" {
+		m.Host = realHost
+	}
+
+}
+
+// NewClient creates a new SSH client with the given parameters
+func NewClient(user string, host string, port string, keyPath string, password string) (*Client, error) {
 	var authMethods []ssh.AuthMethod
 	if keyPath != "" {
 		key, err := os.ReadFile(keyPath)
@@ -202,7 +268,7 @@ func NewSSHClient(user string, host string, port string, keyPath string, passwor
 	}
 
 	if len(authMethods) == 0 {
-		e := fmt.Errorf("No authentication method was provided (key or password).")
+		e := fmt.Errorf("no authentication method was provided (key or password)")
 		return nil, e
 	}
 
@@ -220,12 +286,13 @@ func NewSSHClient(user string, host string, port string, keyPath string, passwor
 		return nil, e
 	}
 
-	return &SSHClient{
+	return &Client{
 		Client: client,
 	}, nil
 
 }
 
+// IdentifyOS identifies the operating system of the remote machine
 func IdentifyOS(client domain.SSHClient, m *domain.Machine) error {
 	output, err := client.ExecuteCommand("cat /etc/os-release")
 	if err != nil {

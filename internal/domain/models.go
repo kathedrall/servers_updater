@@ -3,7 +3,7 @@ package domain
 import "time"
 
 type Machine struct {
-	Id           string `json:"id"`
+	ID           string `json:"id"`
 	Host         string `json:"host"`
 	User         string `json:"user"`
 	Port         int    `json:"port"`
