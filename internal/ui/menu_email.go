@@ -1,130 +1,183 @@
 package ui
 
 import (
- "bufio"
- "fmt"
- "os"
- "strings"
- "servers_updater/internal/db"
- "servers_updater/internal/domain"
- "time"
+	"bufio"
+	"fmt"
+	"os"
+	"servers_updater/internal/db"
+	"servers_updater/internal/domain"
+	"strings"
+	"time"
 )
 
 func ShowEmailConfiguration(database *db.BoltDB) {
- scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(os.Stdin)
 
- for {
-  ClearScreen()
-  DrawHeader("SMTP MAILER SYSTEM")
-  drawEmailMenuOptions()
- 
+	for {
+		DrawRetroHeader()
 
-  if !scanner.Scan() {
-   break
-  }
-		
-  switch scanner.Text() {
-  case "1":
-   configureSMTP(scanner, database)
-  case "2":
-   manageRecipients(scanner, database)
-  case "0":
-   return
-  default:
-   fmt.Println(COLOR_RED + "Invalid Option" + COLOR_RESET)
-   time.Sleep(1 * time.Second)
-  }
- }
+		// Verificar configuração SMTP atual
+		smtpConfig, smtpErr := database.GetSMTPConfig()
+		recipients, _ := database.ListRecipient()
+
+		// Box de informações do sistema de email
+		fmt.Print(COLOR_BLUE + BOLD)
+		fmt.Print("    ╔═══════════════ SMTP MAILER SYSTEM ════════════════╗" + COLOR_BLACK + "░░\n")
+
+		if smtpErr == nil && smtpConfig.Host != "" {
+			fmt.Printf("    ║ %s[INFO]%s Servidor SMTP: %s                     ║%s░░\n",
+				COLOR_GREEN, COLOR_RESET+COLOR_BLUE+BOLD, smtpConfig.Host, COLOR_BLACK)
+			fmt.Printf("    ║ %s[INFO]%s Email remetente: %s                   ║%s░░\n",
+				COLOR_GREEN, COLOR_RESET+COLOR_BLUE+BOLD, smtpConfig.User, COLOR_BLACK)
+		} else {
+			fmt.Printf("    ║ %s[WARN]%s SMTP não configurado                   ║%s░░\n",
+				COLOR_YELLOW, COLOR_RESET+COLOR_BLUE+BOLD, COLOR_BLACK)
+		}
+
+		fmt.Printf("    ║ %s[INFO]%s %d destinatários cadastrados            ║%s░░\n",
+			COLOR_GREEN, COLOR_RESET+COLOR_BLUE+BOLD, len(recipients), COLOR_BLACK)
+
+		fmt.Print("    ║                                                  ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║ " + COLOR_YELLOW + BOLD + "[ACOES DISPONIVEIS]:" + COLOR_RESET + COLOR_BLUE + BOLD + "                      ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "1." + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "SERVER" + COLOR_RESET + "] " + COLOR_GREEN + "Configurar SMTP (Gmail/Outros)" + COLOR_BLUE + BOLD + "   ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "2." + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "LISTA" + COLOR_RESET + "] " + COLOR_GREEN + "Gerenciar Destinatários" + COLOR_BLUE + BOLD + "        ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "0." + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "SAIR" + COLOR_RESET + "] " + COLOR_GREEN + "Voltar ao Menu Principal" + COLOR_BLUE + BOLD + "        ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
+
+		fmt.Printf("\n%s[OPCAO]%s > ", COLOR_YELLOW+BOLD, COLOR_RESET)
+
+		scanner.Scan()
+		switch scanner.Text() {
+		case "1":
+			configureSMTP(scanner, database)
+		case "2":
+			manageRecipients(scanner, database)
+		case "0":
+			return
+		default:
+			fmt.Printf("%s[ERRO]%s Opção inválida%s\n", COLOR_RED+BOLD, COLOR_RESET, COLOR_RESET)
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
-
-func drawEmailMenuOptions() {
- fmt.Println(COLOR_YELLOW)
- fmt.Println("╔══════════════════════════════════════════════╗")
- fmt.Println("║     PAINEL DE CONTROLE DE EMAIL              ║")
- fmt.Println("╠══════════════════════════════════════════════╣")
- fmt.Println("║                                              ║")
- fmt.Println("║  1. [SERVER] Configurar SMTP (Gmail/Outros)  ║")
- fmt.Println("║  2. [LISTA]  Gerenciar Destinatários         ║")
- fmt.Println("║  0. [VOLTAR] Retornar ao Menu Principal      ║")
- fmt.Println("║                                              ║")
- fmt.Println("╚══════════════════════════════════════════════╝")
- fmt.Print(COLOR_RESET + "\n [OPCAO] > ")
-}
-
-
-
 
 func configureSMTP(scanner *bufio.Scanner, database *db.BoltDB) {
- ClearScreen()
- DrawHeader("SMTP CONFIG")
- 
- fmt.Print(COLOR_YELLOW + "\n-- [ EDIT DATA ] ---" + COLOR_RESET)
- fmt.Print("Host SMTP (ex: smtp.gmail.com): ")
-  scanner.Scan()
- host := scanner.Text()
- fmt.Print("SMTP PORT (ex: 587): ")
-  scanner.Scan()
-  port := scanner.Text()
- fmt.Print("EMAIL SENDER: ")
-  scanner.Scan()
-  user := scanner.Text()
- fmt.Print("App Password: ")
-  scanner.Scan()
-  pass := scanner.Text()
+	ClearScreen()
+	DrawRetroHeader()
 
- config := domain.SMTPConfig{
-  Host:     host,
-  Port:     port,
-  User:     user,
-  Password: pass, 
- }
- 
- if err := database.SaveSMTPConfig(config); err != nil {
-  fmt.Printf(COLOR_RED + "\nError while saving: %v\n" + COLOR_RESET, err)
- } else {
-  fmt.Println(COLOR_GREEN + "\nConfiguration Saved!" + COLOR_RESET)
- }
-  PressEnterToContinue()
+	// Box principal de configuração SMTP
+	fmt.Print(COLOR_BLUE + BOLD)
+	fmt.Print("    ╔═══════════════ CONFIGURACAO SERVIDOR SMTP ═══════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║                    CONFIGURACAO DE EMAIL                ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
+
+	// Box de entrada de dados
+	fmt.Print(COLOR_YELLOW + BOLD)
+	fmt.Print("    ╔═══════════════════ DADOS SMTP ════════════════════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║ " + COLOR_WHITE + "Preencha os dados do servidor SMTP:" + COLOR_RESET + COLOR_YELLOW + BOLD + "              ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
+
+	fmt.Printf("%sHost SMTP%s (ex: smtp.gmail.com): ", COLOR_CYAN+BOLD, COLOR_RESET)
+	scanner.Scan()
+	host := scanner.Text()
+
+	fmt.Printf("%sPorta SMTP%s (ex: 587): ", COLOR_CYAN+BOLD, COLOR_RESET)
+	scanner.Scan()
+	port := scanner.Text()
+
+	fmt.Printf("%sEmail Remetente%s: ", COLOR_CYAN+BOLD, COLOR_RESET)
+	scanner.Scan()
+	user := scanner.Text()
+
+	fmt.Printf("%sSenha do App%s: ", COLOR_CYAN+BOLD, COLOR_RESET)
+	scanner.Scan()
+	pass := scanner.Text()
+
+	config := domain.SMTPConfig{
+		Host:     host,
+		Port:     port,
+		User:     user,
+		Password: pass,
+	}
+
+	// Box de resultado
+	if err := database.SaveSMTPConfig(config); err != nil {
+		fmt.Print(COLOR_RED + BOLD)
+		fmt.Print("    ╔═══════════════════ ERRO CRITICO ══════════════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Printf("    ║ Erro ao salvar configuração: %v                        ║%s░░\n", err, COLOR_BLACK)
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
+	} else {
+		fmt.Print(COLOR_GREEN + BOLD)
+		fmt.Print("    ╔═══════════════════ SUCESSO ═══════════════════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║ Configuração SMTP salva com sucesso!                   ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
+	}
+
+	PauseWithMessage("Pressione [ENTER] para continuar...")
 }
 
 func manageRecipients(scanner *bufio.Scanner, database *db.BoltDB) {
- for {
-  emails, _ := database.ListRecipient()
-  ClearScreen()
-  DrawHeader("MANAGE LIST")
-  fmt.Println(COLOR_YELLOW + "\n--- [ RECIPIENTS  ] ---" + COLOR_RESET)
-   if len(emails) == 0 {
-    fmt.Println("   (No email registered)")
-   } else {
-    for i, email := range emails {
-     fmt.Printf("   %d. %s\n", i+1, email)
-    }
-   }
+	for {
+		emails, _ := database.ListRecipient()
+		ClearScreen()
+		DrawRetroHeader()
 
- fmt.Println("\n[A] Add  [R] Remove  [V] Back")
- fmt.Print("Options: ")
-  scanner.Scan()
-  choice := strings.ToUpper(scanner.Text())
-  if choice == "V" { 
-   return 
-  }
-  if choice == "A" {
-   fmt.Print("New Emaill: ")
-   scanner.Scan()
-   email := scanner.Text()
-   if strings.Contains(email, "@") {
-    database.AddRecipient(email) 
-   }
-  } else if choice == "R" {
-   fmt.Print("Remove Email: ")
-   scanner.Scan()
-   database.RemoveRecipient(scanner.Text())
-  }
- }
+		// Box principal de gerenciamento de destinatários
+		fmt.Print(COLOR_BLUE + BOLD)
+		fmt.Print("    ╔═══════════════ GERENCIAR DESTINATARIOS ═══════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║                  LISTA DE EMAILS                        ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ╠══════════════════════════════════════════════════════════╣" + COLOR_BLACK + "░░\n")
+
+		if len(emails) == 0 {
+			fmt.Print("    ║ " + COLOR_YELLOW + "Nenhum email cadastrado" + COLOR_RESET + COLOR_BLUE + BOLD + "                          ║" + COLOR_BLACK + "░░\n")
+		} else {
+			fmt.Printf("    ║ %s[INFO]%s %d emails cadastrados:%s                        ║%s░░\n",
+				COLOR_GREEN, COLOR_RESET+COLOR_BLUE+BOLD, len(emails), COLOR_RESET+COLOR_BLUE+BOLD, COLOR_BLACK)
+			fmt.Print("    ║                                                          ║" + COLOR_BLACK + "░░\n")
+			for i, email := range emails {
+				fmt.Printf("    ║  %s%d.%s %s%s                                         ║%s░░\n",
+					COLOR_WHITE+BOLD, i+1, COLOR_RESET+COLOR_BLUE+BOLD, COLOR_CYAN, email,
+					fmt.Sprintf("%-*s", 50-len(email)-len(fmt.Sprintf("%d. ", i+1)), ""), COLOR_BLACK)
+			}
+		}
+
+		fmt.Print("    ║                                                          ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║ " + COLOR_YELLOW + BOLD + "[ACOES DISPONIVEIS]:" + COLOR_RESET + COLOR_BLUE + BOLD + "                              ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "[A]" + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "ADD" + COLOR_RESET + "] " + COLOR_GREEN + "Adicionar Email" + COLOR_BLUE + BOLD + "                    ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "[R]" + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "REM" + COLOR_RESET + "] " + COLOR_GREEN + "Remover Email" + COLOR_BLUE + BOLD + "                     ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "[V]" + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "BACK" + COLOR_RESET + "] " + COLOR_GREEN + "Voltar" + COLOR_BLUE + BOLD + "                          ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
+
+		fmt.Printf("\n%s[OPCAO]%s > ", COLOR_YELLOW+BOLD, COLOR_RESET)
+		scanner.Scan()
+		choice := strings.ToUpper(scanner.Text())
+		if choice == "V" {
+			return
+		}
+		if choice == "A" {
+			fmt.Printf("\n%sNovo Email%s: ", COLOR_CYAN+BOLD, COLOR_RESET)
+			scanner.Scan()
+			email := scanner.Text()
+			if strings.Contains(email, "@") {
+				database.AddRecipient(email)
+				fmt.Printf("%s[SUCESSO]%s Email %s adicionado!\n", COLOR_GREEN+BOLD, COLOR_RESET, email)
+			} else {
+				fmt.Printf("%s[ERRO]%s Email inválido!\n", COLOR_RED+BOLD, COLOR_RESET)
+			}
+			time.Sleep(1500 * time.Millisecond)
+		} else if choice == "R" {
+			fmt.Printf("\n%sRemover Email%s: ", COLOR_CYAN+BOLD, COLOR_RESET)
+			scanner.Scan()
+			email := scanner.Text()
+			database.RemoveRecipient(email)
+			fmt.Printf("%s[SUCESSO]%s Email %s removido!\n", COLOR_GREEN+BOLD, COLOR_RESET, email)
+			time.Sleep(1500 * time.Millisecond)
+		}
+	}
 }
-
-func PressEnterToContinue() {
- fmt.Println("\nPress [Enter] for continue...")
- bufio.NewReader(os.Stdin).ReadBytes('\n')
-}
-

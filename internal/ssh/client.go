@@ -314,10 +314,7 @@ func resolveHostConfig(m *domain.Machine) {
 	}
 
 	if proxyJump, _ := cfg.Get(m.Host, "ProxyJump"); proxyJump != "" {
-		fmt.Printf("DEBUG: ProxyJump detectado para %s: %s\n", m.Host, proxyJump)
 		m.ProxyJumper = &proxyJump
-	} else {
-		fmt.Printf("DEBUG: Nenhum ProxyJump encontrado para %s\n", m.Host)
 	}
 	if m.KeyPath == "" {
 		keyFile, _ := cfg.Get(m.Host, "IdentityFile")

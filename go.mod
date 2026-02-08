@@ -1,6 +1,6 @@
 module servers_updater
 
-go 1.25.6
+go 1.25.7
 
 require (
 	github.com/kevinburke/ssh_config v1.4.0

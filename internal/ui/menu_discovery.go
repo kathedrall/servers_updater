@@ -14,24 +14,33 @@ const LIMIT_WORKERS = 10
 
 func (m *Menu) screenConfig() {
 	for {
-		ClearScreen()
-		DrawHeader("Gestao de hosts & Discovery")
+		DrawRetroHeader()
 		dbMachines, _ := m.DB.GetAllMachines()
 		sshMachines, err := ssh.LoadMachinesFromSSHConfig()
 
-		fmt.Printf("\n [INFO] %d Hosts no banco de dados", len(dbMachines))
+		// Box de informações
+		fmt.Print(COLOR_BLUE + BOLD)
+		fmt.Print("    ╔═══════════════ GESTAO DE HOSTS & DISCOVERY ════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Printf("    ║ %s[INFO]%s %d Hosts no banco de dados                    ║%s░░\n",
+			COLOR_GREEN, COLOR_RESET+COLOR_BLUE+BOLD, len(dbMachines), COLOR_BLACK)
+
 		if err == nil {
-			fmt.Printf("\n [INFO] %d Hosts encontrados no ~/.ssh/config", len(sshMachines))
+			fmt.Printf("    ║ %s[INFO]%s %d Hosts encontrados no ~/.ssh/config          ║%s░░\n",
+				COLOR_GREEN, COLOR_RESET+COLOR_BLUE+BOLD, len(sshMachines), COLOR_BLACK)
 		} else {
-			fmt.Printf("\n [WARN] Erro ao ler ~/.ssh/config: %v", err)
+			fmt.Printf("    ║ %s[WARN]%s Erro ao ler ~/.ssh/config                    ║%s░░\n",
+				COLOR_YELLOW, COLOR_RESET+COLOR_BLUE+BOLD, COLOR_BLACK)
 		}
 
-		fmt.Println("\n\n [ACOES DISPONIVEIS]:")
-		fmt.Println(" 1. [SCAN] Iniciar Discovery (Atualizar status OS)")
-		fmt.Println(" 2. [NOVO] Adicionar Host Manualmente")
-		fmt.Println(" 0. Voltar ao menu Principal")
+		fmt.Print("    ║                                                          ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║ " + COLOR_YELLOW + BOLD + "[ACOES DISPONIVEIS]:" + COLOR_RESET + COLOR_BLUE + BOLD + "                              ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "1." + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "SCAN" + COLOR_RESET + "] " + COLOR_GREEN + "Iniciar Discovery (Atualizar status OS)" + COLOR_BLUE + BOLD + "     ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "2." + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "NOVO" + COLOR_RESET + "] " + COLOR_GREEN + "Adicionar Host Manualmente" + COLOR_BLUE + BOLD + "            ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║  " + COLOR_WHITE + "0." + COLOR_RESET + " [" + COLOR_CYAN + BOLD + "SAIR" + COLOR_RESET + "] " + COLOR_GREEN + "Voltar ao Menu Principal" + COLOR_BLUE + BOLD + "              ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
 
-		fmt.Print("\n > ")
+		fmt.Printf("\n%s[OPCAO]%s > ", COLOR_YELLOW+BOLD, COLOR_RESET)
 		var opt int
 		fmt.Scanln(&opt)
 
@@ -50,26 +59,50 @@ func (m *Menu) screenConfig() {
 
 func (m *Menu) runDiscoveryRoutine() {
 	ClearScreen()
+	DrawRetroHeader()
 
-	fmt.Println("==============================================================")
-	fmt.Println(" TURBO DISCOVERY: VARREDURA DE REDE")
-	fmt.Println("==============================================================")
+	// Box principal do Discovery
+	fmt.Print(COLOR_BLUE + BOLD)
+	fmt.Print("    ╔═══════════════ TURBO DISCOVERY: VARREDURA ═════════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║                    DE REDE & SERVIDORES                  ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
 
 	machines, err := ssh.LoadMachinesFromSSHConfig()
 	if err != nil {
-		fmt.Printf(COLOR_YELLOW+"\n [WARN] Erro ao ler ~/.ssh/config: %v"+COLOR_RESET+"\n", err)
-		fmt.Println(" Tentando carregar do banco de dados...")
+		fmt.Print(COLOR_YELLOW + BOLD)
+		fmt.Print("    ╔══════════════════ AVISO IMPORTANTE ═══════════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Printf("    ║ %s[WARN]%s Erro ao ler ~/.ssh/config: %v"+COLOR_YELLOW+BOLD, COLOR_RED, COLOR_RESET+COLOR_YELLOW+BOLD)
+		fmt.Print("          ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║ Tentando carregar do banco de dados...                  ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
 
 		machines, err = m.DB.GetAllMachines()
 		if err != nil || len(machines) == 0 {
-			fmt.Println(COLOR_RED + "\n [!] Nenhuma máquina encontrada no banco e no ~/.ssh/config." + COLOR_RESET)
-			fmt.Println(" Adicione hosts primeiro via ~/.ssh/config ou importação manual.")
+			fmt.Print(COLOR_RED + BOLD)
+			fmt.Print("    ╔══════════════════ ERRO CRITICO ═══════════════════════════╗" + COLOR_BLACK + "░░\n")
+			fmt.Print("    ║ Nenhuma máquina encontrada no banco e no ~/.ssh/config   ║" + COLOR_BLACK + "░░\n")
+			fmt.Print("    ║ Adicione hosts primeiro via ~/.ssh/config ou manual     ║" + COLOR_BLACK + "░░\n")
+			fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+			fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
 			m.waitEnter()
 			return
 		}
-		fmt.Printf(COLOR_GREEN+" [OK] Carregadas %d máquinas do banco de dados"+COLOR_RESET+"\n", len(machines))
+
+		fmt.Print(COLOR_GREEN + BOLD)
+		fmt.Print("    ╔═══════════════ MAQUINAS CARREGADAS ═══════════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Printf("    ║ %s[OK]%s Carregadas %d máquinas do banco de dados       ║%s░░\n",
+			COLOR_GREEN, COLOR_RESET+COLOR_GREEN+BOLD, len(machines), COLOR_BLACK)
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
 	} else {
-		fmt.Printf(COLOR_GREEN+" [OK] Carregadas %d máquinas do ~/.ssh/config"+COLOR_RESET+"\n", len(machines))
+		fmt.Print(COLOR_GREEN + BOLD)
+		fmt.Print("    ╔═══════════════ MAQUINAS CARREGADAS ═══════════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Printf("    ║ %s[OK]%s Carregadas %d máquinas do ~/.ssh/config        ║%s░░\n",
+			COLOR_GREEN, COLOR_RESET+COLOR_GREEN+BOLD, len(machines), COLOR_BLACK)
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
 
 		for _, machine := range machines {
 			m.DB.SaveMachine(machine)
@@ -81,8 +114,15 @@ func (m *Menu) runDiscoveryRoutine() {
 		limitWorkes = poolLimit
 	}
 
-	fmt.Printf("\n Calibragem de rede (Pool) %s%d Workers simultaneos%s", COLOR_GREEN, limitWorkes, COLOR_RESET)
-	fmt.Printf("\n >> Iniciando scan em %d servidores Gnu Linux... \n\n", len(machines))
+	// Box de configurações do scan
+	fmt.Print(COLOR_CYAN + BOLD)
+	fmt.Print("    ╔════════════════ CONFIGURACOES SCAN ═══════════════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Printf("    ║ Calibragem de rede (Pool): %s%d Workers simultaneos%s    ║%s░░\n",
+		COLOR_GREEN, limitWorkes, COLOR_RESET+COLOR_CYAN+BOLD, COLOR_BLACK)
+	fmt.Printf("    ║ Iniciando scan em %s%d servidores%s GNU Linux...          ║%s░░\n",
+		COLOR_GREEN, len(machines), COLOR_RESET+COLOR_CYAN+BOLD, COLOR_BLACK)
+	fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
 
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, limitWorkes)
@@ -136,11 +176,28 @@ func (m *Menu) runDiscoveryRoutine() {
 
 	duration := time.Since(start)
 	ClearScreen()
-	fmt.Printf("\n[ Scan completed on %s]\n", duration)
+	DrawRetroHeader()
+
+	// Box de resultado final
+	fmt.Print(COLOR_GREEN + BOLD)
+	fmt.Print("    ╔═════════════════ SCAN COMPLETED ══════════════════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Printf("    ║ %s[SUCESSO]%s Scan finalizado em: %s                      ║%s░░\n",
+		COLOR_GREEN, COLOR_RESET+COLOR_GREEN+BOLD, duration, COLOR_BLACK)
+	fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
 
 	m.printDiscoveryGrid(updateMachines)
-	fmt.Println("\n What do you want ")
-	fmt.Println(" [ENTER] return to menu | [R] Reload")
+
+	// Box de ações disponíveis
+	fmt.Print(COLOR_BLUE + BOLD)
+	fmt.Print("    ╔══════════════════ ACOES DISPONIVEL ═══════════════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║ " + COLOR_YELLOW + BOLD + "[OPCOES]:" + COLOR_RESET + COLOR_BLUE + BOLD + "                                               ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║  " + COLOR_WHITE + "[ENTER]" + COLOR_RESET + " " + COLOR_GREEN + "Voltar ao Menu Principal" + COLOR_BLUE + BOLD + "                ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║  " + COLOR_WHITE + "[R]" + COLOR_RESET + "     " + COLOR_GREEN + "Executar Novo Scan" + COLOR_BLUE + BOLD + "                     ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
+
+	fmt.Printf("\n%s[OPCAO]%s > ", COLOR_YELLOW+BOLD, COLOR_RESET)
 
 	var input string
 	scanner := bufio.NewScanner(os.Stdin)
@@ -154,21 +211,58 @@ func (m *Menu) runDiscoveryRoutine() {
 }
 
 func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
-	fmt.Println("\nInfrastructure Report")
-	fmt.Println("========================================================================================================")
-	fmt.Printf("%-16s | %-10s | %-30s | %-12s | %s5s | %-5s\n", "HOST", "USER", "SISTEMA (DETECTED)", "STATUS", "SUP", "JUMPER PROXY")
-	fmt.Println("========================================================================================================")
+	if len(machines) == 0 {
+		fmt.Print(COLOR_YELLOW + BOLD)
+		fmt.Print("    ╔═══════════════════ AVISO ══════════════════════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║ Nenhuma máquina para exibir no relatório                ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
+		return
+	}
 
-	for _, mac := range machines {
-		support := "[--]"
-		if mac.IsSupported {
-			support = "[OK]"
-		} else if mac.Status == "ONLINE" && !mac.IsSupported {
-			support = "[!!]"
+	// Contadores para estatísticas
+	online, supported, failed := 0, 0, 0
+	for _, machine := range machines {
+		switch machine.Status {
+		case "ONLINE":
+			online++
+			if machine.IsSupported {
+				supported++
+			}
+		case "AUTH_FAIL":
+			failed++
 		}
-		jumper := "[--]"
+	}
+
+	// Box principal do relatório com grid interno
+	fmt.Print(COLOR_BLUE + BOLD)
+	fmt.Print("╔══════════════════════ RELATORIO INFRAESTRUTURA ═══════════════════════════════════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Print("║                              ESTADO DOS SERVIDORES                                         ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("╠════════════════════════════════════════════════════════════════════════════════════════════╣" + COLOR_BLACK + "░░\n")
+
+	// Box de estatísticas dentro do quadro
+	fmt.Printf("║ %s[INFO]%s Total: %d | Online: %d | Falhas: %d | Suportadas: %d %s║%s░░\n",
+		COLOR_CYAN, COLOR_RESET+COLOR_BLUE+BOLD, len(machines), online, failed, supported,
+		fmt.Sprintf("%-*s", 35, ""), COLOR_BLACK)
+	fmt.Print("╠════════════════════════════════════════════════════════════════════════════════════════════╣" + COLOR_BLACK + "░░\n")
+
+	// Cabeçalho da tabela dentro do quadro
+	fmt.Printf("║ %s%-18s | %-10s | %-25s | %-13s | %-8s | %-10s%s ║%s░░\n",
+		COLOR_WHITE+BOLD, "HOST", "USER", "SISTEMA (DETECTED)", "STATUS", "SUPPORT", "JUMPER", COLOR_RESET+COLOR_BLUE+BOLD, COLOR_BLACK)
+	fmt.Print("║═══════════════════════════════════════════════════════════════════════════════════════════║" + COLOR_BLACK + "░░\n")
+
+	// Listagem das máquinas dentro do quadro
+	for _, mac := range machines {
+		support := COLOR_RED + "[--]" + COLOR_RESET
+		if mac.IsSupported {
+			support = COLOR_GREEN + "[OK]" + COLOR_RESET
+		} else if mac.Status == "ONLINE" && !mac.IsSupported {
+			support = COLOR_YELLOW + "[!!]" + COLOR_RESET
+		}
+
+		jumper := COLOR_GRAY + "[--]" + COLOR_RESET
 		if mac.ProxyJumper != nil {
-			jumper = *mac.ProxyJumper
+			jumper = COLOR_CYAN + *mac.ProxyJumper + COLOR_RESET
 		}
 
 		statusVis := mac.Status
@@ -176,20 +270,31 @@ func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
 
 		switch mac.Status {
 		case "AUTH_FAIL":
-			statusVis = "FAIL"
+			statusVis = COLOR_RED + "FAIL" + COLOR_RESET
 			color = COLOR_RED
 		case "ONLINE":
-			statusVis = "[ONLINE]"
+			statusVis = COLOR_GREEN + "[ONLINE]" + COLOR_RESET
 			color = COLOR_GREEN
 		}
 
-		userStr := ""
+		userStr := COLOR_GRAY + "---" + COLOR_RESET
 		if mac.User != "" {
-			userStr = mac.User
+			userStr = COLOR_CYAN + mac.User + COLOR_RESET
 		}
-		fmt.Printf("%s%-16s | %-10s | %-30s | %-12s | %-5s | %-5s%5s\n", color, mac.Host, userStr, mac.PrettyName, statusVis, support, jumper, COLOR_RESET)
+
+		fmt.Printf("║ %-18s | %-10s | %-25s | %-13s | %-8s | %-10s %s║%s░░\n",
+			color+mac.Host+COLOR_RESET, userStr, mac.PrettyName, statusVis, support, jumper,
+			COLOR_BLUE+BOLD, COLOR_BLACK)
 	}
-	fmt.Println("========================================================================================================")
+
+	fmt.Print("╠════════════════════════════════════════════════════════════════════════════════════════════╣" + COLOR_BLACK + "░░\n")
+
+	// Box de legenda dentro do quadro
+	fmt.Printf("║ %s[OK]%s Sistema suportado | %s[!!]%s Online não suportado | %s[--]%s Offline/Falha      ║%s░░\n",
+		COLOR_GREEN, COLOR_RESET+COLOR_BLUE+BOLD, COLOR_YELLOW, COLOR_RESET+COLOR_BLUE+BOLD, COLOR_RED, COLOR_RESET+COLOR_BLUE+BOLD, COLOR_BLACK)
+
+	fmt.Print("╚════════════════════════════════════════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("  " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
 }
 
 func (m *Menu) waitEnter() {
