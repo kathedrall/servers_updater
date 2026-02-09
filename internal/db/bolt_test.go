@@ -1,10 +1,13 @@
 package db
 
 import (
+	"encoding/json"
 	"os"
 	"servers_updater/internal/domain"
 	"strings"
 	"testing"
+
+	"go.etcd.io/bbolt"
 )
 
 func setupTestDB(t *testing.T) (*BoltDB, string) {
@@ -152,4 +155,193 @@ func TestMachineCRUD(t *testing.T) {
 	if machines[0].Host != machine.Host {
 		t.Errorf("Corrupted data. I was expecting host %s, but received %s", machine.Host, machines[0].Host)
 	}
+}
+
+func TestMachinePasswordEncryption(t *testing.T) {
+	db, path := setupTestDB(t)
+	defer func() { db.Close(); os.Remove(path) }()
+
+	// Máquina de teste com senha
+	testMachine := domain.Machine{
+		Host:       "test.crypto.com",
+		User:       "testuser",
+		Password:   "minhasenhasecreta123",
+		OSName:     "ubuntu",
+		OSVersion:  "22.04",
+		PrettyName: "Ubuntu 22.04 LTS",
+	}
+
+	t.Run("SaveAndRetrieveEncryptedPassword", func(t *testing.T) {
+		// Salvar máquina com senha
+		err := db.SaveMachine(testMachine)
+		if err != nil {
+			t.Fatalf("Erro ao salvar máquina: %v", err)
+		}
+
+		// Recuperar máquina
+		retrievedMachine, err := db.GetMachineByHost(testMachine.Host)
+		if err != nil {
+			t.Fatalf("Erro ao recuperar máquina: %v", err)
+		}
+
+		// Verificar se a senha foi descriptografada corretamente
+		if retrievedMachine.Password != testMachine.Password {
+			t.Errorf("Senha não foi descriptografada corretamente. Esperado: %s, Obtido: %s",
+				testMachine.Password, retrievedMachine.Password)
+		}
+
+		// Verificar se outros dados foram preservados
+		if retrievedMachine.Host != testMachine.Host {
+			t.Errorf("Host não foi preservado. Esperado: %s, Obtido: %s",
+				testMachine.Host, retrievedMachine.Host)
+		}
+
+		if retrievedMachine.User != testMachine.User {
+			t.Errorf("User não foi preservado. Esperado: %s, Obtido: %s",
+				testMachine.User, retrievedMachine.User)
+		}
+	})
+
+	t.Run("PasswordIsEncryptedInDatabase", func(t *testing.T) {
+		// Verificar diretamente no banco se a senha está criptografada
+		var storedPassword string
+		err := db.conn.View(func(tx *bbolt.Tx) error {
+			bucket := tx.Bucket([]byte(BUCKET_MACHINES))
+			if bucket == nil {
+				t.Fatal("Bucket MACHINES não encontrado")
+			}
+
+			data := bucket.Get([]byte(testMachine.Host))
+			if data == nil {
+				t.Fatal("Máquina não encontrada no banco")
+			}
+
+			var storedMachine domain.Machine
+			if err := json.Unmarshal(data, &storedMachine); err != nil {
+				return err
+			}
+
+			storedPassword = storedMachine.Password
+			return nil
+		})
+
+		if err != nil {
+			t.Fatalf("Erro ao ler dados criptografados: %v", err)
+		}
+
+		// A senha armazenada deve ser diferente da senha original (criptografada)
+		if storedPassword == testMachine.Password {
+			t.Error("Senha está sendo salva em texto plano! Deve estar criptografada.")
+		}
+
+		// A senha criptografada não deve estar vazia
+		if storedPassword == "" {
+			t.Error("Senha criptografada está vazia")
+		}
+
+		t.Logf("Senha original: %s", testMachine.Password)
+		t.Logf("Senha criptografada (primeiros 20 chars): %s...", 
+			func() string {
+				if len(storedPassword) > 20 {
+					return storedPassword[:20]
+				}
+				return storedPassword
+			}())
+	})
+
+	t.Run("EmptyPasswordHandling", func(t *testing.T) {
+		// Testar máquina sem senha
+		machineNoPassword := domain.Machine{
+			Host:       "no-password.test.com",
+			User:       "testuser",
+			OSName:     "debian",
+		}
+
+		err := db.SaveMachine(machineNoPassword)
+		if err != nil {
+			t.Fatalf("Erro ao salvar máquina sem senha: %v", err)
+		}
+
+		retrieved, err := db.GetMachineByHost(machineNoPassword.Host)
+		if err != nil {
+			t.Fatalf("Erro ao recuperar máquina sem senha: %v", err)
+		}
+
+		if retrieved.Password != "" {
+			t.Errorf("Máquina sem senha deveria ter Password vazio, mas tem: %s", retrieved.Password)
+		}
+	})
+}
+
+func TestMasterKeyGeneration(t *testing.T) {
+	db, path := setupTestDB(t)
+	defer func() { db.Close(); os.Remove(path) }()
+
+	t.Run("MasterKeyIsGenerated", func(t *testing.T) {
+		key1, err := db.getMasterKey()
+		if err != nil {
+			t.Fatalf("Erro ao obter chave master: %v", err)
+		}
+
+		if len(key1) != 32 {
+			t.Errorf("Chave master deveria ter 32 bytes, mas tem %d", len(key1))
+		}
+
+		// Segunda chamada deve retornar a mesma chave
+		key2, err := db.getMasterKey()
+		if err != nil {
+			t.Fatalf("Erro ao obter chave master novamente: %v", err)
+		}
+
+		if string(key1) != string(key2) {
+			t.Error("Chave master deveria ser a mesma em chamadas subsequentes")
+		}
+	})
+}
+
+func TestEncryptionFunctions(t *testing.T) {
+	testData := "dados para testar criptografia"
+	key := make([]byte, 32) // AES-256 key
+	copy(key, []byte("esta-e-uma-chave-de-32-bytes-ok"))
+
+	t.Run("EncryptAndDecrypt", func(t *testing.T) {
+		// Criptografar
+		encrypted, err := encrypt([]byte(testData), key)
+		if err != nil {
+			t.Fatalf("Erro ao criptografar: %v", err)
+		}
+
+		// Dados criptografados devem ser diferentes dos originais
+		if string(encrypted) == testData {
+			t.Error("Dados criptografados são iguais aos originais")
+		}
+
+		// Descriptografar
+		decrypted, err := decrypt(encrypted, key)
+		if err != nil {
+			t.Fatalf("Erro ao descriptografar: %v", err)
+		}
+
+		// Dados descriptografados devem ser iguais aos originais
+		if string(decrypted) != testData {
+			t.Errorf("Descriptografia falhou. Esperado: %s, Obtido: %s", testData, string(decrypted))
+		}
+	})
+
+	t.Run("DecryptWithWrongKey", func(t *testing.T) {
+		// Criptografar com uma chave
+		encrypted, err := encrypt([]byte(testData), key)
+		if err != nil {
+			t.Fatalf("Erro ao criptografar: %v", err)
+		}
+
+		// Tentar descriptografar com chave errada
+		wrongKey := make([]byte, 32)
+		copy(wrongKey, []byte("esta-e-uma-chave-diferente-32b"))
+
+		_, err = decrypt(encrypted, wrongKey)
+		if err == nil {
+			t.Error("Deveria falhar ao descriptografar com chave errada")
+		}
+	})
 }

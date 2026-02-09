@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,19 +86,101 @@ func (db *BoltDB) GetAllMachines() ([]domain.Machine, error) {
 	return machines, err
 }
 
+func (db *BoltDB) GetMachineByHost(host string) (domain.Machine, error) {
+	var machine domain.Machine
+
+	err := db.conn.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(BUCKET_MACHINES))
+		if bucket == nil {
+			return fmt.Errorf("machines bucket not found")
+		}
+
+		data := bucket.Get([]byte(host))
+		if data == nil {
+			return fmt.Errorf("machine with host %s not found", host)
+		}
+
+		if err := json.Unmarshal(data, &machine); err != nil {
+			return fmt.Errorf("error unmarshaling machine data: %v", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return machine, err
+	}
+
+	// Descriptografar senha APÓS a transação se existir e estiver criptografada
+	if machine.Password != "" {
+		isEncrypted := isEncryptedData([]byte(machine.Password))
+		
+		if isEncrypted {
+			masterKey, err := db.getMasterKey()
+			if err != nil {
+				return machine, fmt.Errorf("erro ao obter chave master: %v", err)
+			}
+			
+			// Decodificar de base64
+			encryptedData, err := base64.StdEncoding.DecodeString(machine.Password)
+			if err != nil {
+				// Se falhar ao decodificar, pode ser senha antiga em texto plano
+				return machine, nil
+			}
+			
+			decryptedPassword, err := decrypt(encryptedData, masterKey)
+			if err != nil {
+				// Se falhar ao descriptografar, pode ser senha antiga em texto plano
+				// Mantém a senha como está (compatibilidade com dados antigos)
+				return machine, nil
+			}
+			machine.Password = string(decryptedPassword)
+		}
+	}
+
+	return machine, nil
+}
+
+// isEncryptedData verifica se os dados parecem estar criptografados
+// Agora verifica se é uma string base64 válida
+func isEncryptedData(data []byte) bool {
+	str := string(data)
+	// Se tem menos de 16 chars (12 bytes nonce + 16 bytes tag codificados), provavelmente não está criptografado
+	if len(str) < 16 {
+		return false
+	}
+	
+	// Tentar decodificar como base64
+	_, err := base64.StdEncoding.DecodeString(str)
+	return err == nil
+}
+
 func (db *BoltDB) SaveMachine(m domain.Machine) error {
+	// Criptografar senha ANTES da transação se necessário
+	var machineToSave = m
+	if m.Password != "" {
+		masterKey, err := db.getMasterKey()
+		if err != nil {
+			return fmt.Errorf("erro ao obter chave master: %v", err)
+		}
+		encryptedPassword, err := encrypt([]byte(m.Password), masterKey)
+		if err != nil {
+			return fmt.Errorf("erro ao criptografar senha: %v", err)
+		}
+		// Codificar em base64 para evitar corrupção durante JSON
+		machineToSave.Password = base64.StdEncoding.EncodeToString(encryptedPassword)
+	}
+
 	return db.conn.Update(func(tx *bbolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(BUCKET_MACHINES))
 		if err != nil {
 			return err
 		}
 
-		key := m.Host
-		if m.ID != "" {
-			key = m.ID
-		}
+		// SEMPRE usar o Host como chave para consistência
+		key := machineToSave.Host
 
-		data, err := json.Marshal(m)
+		data, err := json.Marshal(machineToSave)
 		if err != nil {
 			e := fmt.Errorf("FAILED to convert to json: %v", err)
 			return e
@@ -298,4 +381,182 @@ func (db *BoltDB) GetSSHConfig() (string, string, error) {
 		return nil
 	})
 	return user, keyPath, err
+}
+
+// getMasterKey obtém ou gera uma chave master para criptografia
+func (db *BoltDB) getMasterKey() ([]byte, error) {
+	var masterKey []byte
+	err := db.conn.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BUCKET_SETTINGS))
+		if b == nil {
+			return fmt.Errorf("settings bucket not found")
+		}
+
+		// Tentar buscar chave existente
+		existingKey := b.Get([]byte("master_key"))
+		if existingKey != nil {
+			masterKey = make([]byte, len(existingKey))
+			copy(masterKey, existingKey)
+			return nil
+		}
+
+		return fmt.Errorf("master key not found")
+	})
+
+	if err != nil {
+		// Chave não existe, criar uma nova
+		return db.createMasterKey()
+	}
+
+	return masterKey, nil
+}
+
+// createMasterKey cria uma nova chave master
+func (db *BoltDB) createMasterKey() ([]byte, error) {
+	var masterKey []byte
+	err := db.conn.Update(func(tx *bbolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte(BUCKET_SETTINGS))
+		if err != nil {
+			return err
+		}
+
+		// Verificar novamente se a chave foi criada entre as chamadas
+		existingKey := b.Get([]byte("master_key"))
+		if existingKey != nil {
+			masterKey = make([]byte, len(existingKey))
+			copy(masterKey, existingKey)
+			return nil
+		}
+
+		// Gerar nova chave de 32 bytes (AES-256)
+		newKey := make([]byte, 32)
+		if _, err := io.ReadFull(rand.Reader, newKey); err != nil {
+			return err
+		}
+
+		// Salvar a nova chave
+		if err := b.Put([]byte("master_key"), newKey); err != nil {
+			return err
+		}
+
+		masterKey = make([]byte, 32)
+		copy(masterKey, newKey)
+		return nil
+	})
+	return masterKey, err
+}
+
+// HasStoredCredentials verifica se uma máquina possui credenciais armazenadas
+func (db *BoltDB) HasStoredCredentials(host string) bool {
+	err := db.conn.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(BUCKET_MACHINES))
+		if bucket == nil {
+			return fmt.Errorf("machines bucket not found")
+		}
+
+		data := bucket.Get([]byte(host))
+		if data == nil {
+			return fmt.Errorf("machine not found")
+		}
+
+		var machine domain.Machine
+		if err := json.Unmarshal(data, &machine); err != nil {
+			return fmt.Errorf("error unmarshaling machine data: %v", err)
+		}
+
+		if machine.Password == "" && machine.KeyPath == "" {
+			return fmt.Errorf("no credentials stored")
+		}
+
+		return nil
+	})
+	return err == nil
+}
+
+// UpdateMachineCredentials atualiza apenas as credenciais de uma máquina sem afetar outras informações
+func (db *BoltDB) UpdateMachineCredentials(host, password, keyPath string) error {
+	return db.conn.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(BUCKET_MACHINES))
+		if bucket == nil {
+			return fmt.Errorf("machines bucket not found")
+		}
+
+		data := bucket.Get([]byte(host))
+		if data == nil {
+			return fmt.Errorf("machine with host %s not found", host)
+		}
+
+		var machine domain.Machine
+		if err := json.Unmarshal(data, &machine); err != nil {
+			return fmt.Errorf("error unmarshaling machine data: %v", err)
+		}
+
+		// Atualizar apenas as credenciais
+		machine.Password = password
+		machine.KeyPath = keyPath
+
+		// Salvar de volta
+		updatedData, err := json.Marshal(machine)
+		if err != nil {
+			return fmt.Errorf("error marshaling updated machine data: %v", err)
+		}
+
+		return bucket.Put([]byte(host), updatedData)
+	})
+}
+
+// GetMachineCredentials retorna apenas as credenciais de uma máquina
+func (db *BoltDB) GetMachineCredentials(host string) (password, keyPath string, err error) {
+	err = db.conn.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(BUCKET_MACHINES))
+		if bucket == nil {
+			return fmt.Errorf("machines bucket not found")
+		}
+
+		data := bucket.Get([]byte(host))
+		if data == nil {
+			return fmt.Errorf("machine with host %s not found", host)
+		}
+
+		var machine domain.Machine
+		if err := json.Unmarshal(data, &machine); err != nil {
+			return fmt.Errorf("error unmarshaling machine data: %v", err)
+		}
+
+		password = machine.Password
+		keyPath = machine.KeyPath
+		return nil
+	})
+	return password, keyPath, err
+}
+
+// ClearMachinePassword remove a senha armazenada de uma máquina (útil quando a autenticação falha)
+func (db *BoltDB) ClearMachinePassword(host string) error {
+	return db.conn.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(BUCKET_MACHINES))
+		if bucket == nil {
+			return fmt.Errorf("machines bucket not found")
+		}
+
+		data := bucket.Get([]byte(host))
+		if data == nil {
+			return fmt.Errorf("machine with host %s not found", host)
+		}
+
+		var machine domain.Machine
+		if err := json.Unmarshal(data, &machine); err != nil {
+			return fmt.Errorf("error unmarshaling machine data: %v", err)
+		}
+
+		// Limpar apenas a senha
+		machine.Password = ""
+
+		// Salvar de volta
+		updatedData, err := json.Marshal(machine)
+		if err != nil {
+			return fmt.Errorf("error marshaling updated machine data: %v", err)
+		}
+
+		return bucket.Put([]byte(host), updatedData)
+	})
 }

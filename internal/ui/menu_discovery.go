@@ -7,7 +7,10 @@ import (
 	"servers_updater/internal/domain"
 	"servers_updater/internal/ssh"
 	"sync"
+	"syscall"
 	"time"
+
+	"golang.org/x/term"
 )
 
 const LIMIT_WORKERS = 10
@@ -121,6 +124,10 @@ func (m *Menu) runDiscoveryRoutine() {
 		COLOR_GREEN, limitWorkes, COLOR_RESET+COLOR_CYAN+BOLD, COLOR_BLACK)
 	fmt.Printf("    ║ Iniciando scan em %s%d servidores%s GNU Linux...          ║%s░░\n",
 		COLOR_GREEN, len(machines), COLOR_RESET+COLOR_CYAN+BOLD, COLOR_BLACK)
+	fmt.Print("    ║ " + COLOR_YELLOW + "OTIMIZACAO INTELIGENTE:" + COLOR_RESET + COLOR_CYAN + BOLD + "                          ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║ • Credenciais salvas no banco (sem re-digitação)       ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║ • Info do OS cached (evita re-discovery)               ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║ • Senha solicitada apenas se conexão falhar            ║" + COLOR_BLACK + "░░\n")
 	fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
 	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
 
@@ -140,17 +147,71 @@ func (m *Menu) runDiscoveryRoutine() {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
+			// Primeiro, tentar carregar informações da máquina do banco (credenciais e OS)
+			dbMachine, err := m.DB.GetMachineByHost(targetMachine.Host)
+			if err == nil {
+				// Usar credenciais salvas se disponíveis
+				if targetMachine.Password == "" && dbMachine.Password != "" {
+					targetMachine.Password = dbMachine.Password
+				}
+				// Usar informações do OS salvas para evitar re-discovery
+				if dbMachine.OSName != "" {
+					targetMachine.OSName = dbMachine.OSName
+					targetMachine.OSVersion = dbMachine.OSVersion
+					targetMachine.PrettyName = dbMachine.PrettyName
+					targetMachine.IsSupported = dbMachine.IsSupported
+				}
+			}
+
+			// Se não tem credenciais, vamos tentar conectar e ver o que acontece
+
 			client, err := ssh.Connect(targetMachine)
 			if err != nil {
-				targetMachine.Status = "AUTH_FAIL"
-				targetMachine.PrettyName = "-"
-				targetMachine.IsSupported = false
+				// Se falhou e não tem senha ainda, solicitar (independente de ter KeyPath)
+				if targetMachine.Password == "" {
+					mu.Lock()
+					password := m.requestPasswordForMachine(&targetMachine)
+					if password != "" {
+						targetMachine.Password = password
+						// Tentar conectar novamente com a senha
+						client, err = ssh.Connect(targetMachine)
+						if err == nil {
+							// Salvar imediatamente no banco - FORÇA SEMPRE SALVAR
+							if saveErr := m.DB.SaveMachine(targetMachine); saveErr != nil {
+								// Silenciar erro para não poluir interface
+							}
+						}
+					}
+					mu.Unlock()
+				}
+
+				if err != nil {
+					targetMachine.Status = "AUTH_FAIL"
+					targetMachine.PrettyName = "-"
+					targetMachine.IsSupported = false
+				} else {
+					// Conectou com sucesso
+					defer client.Close()
+					targetMachine.Status = "ONLINE"
+					targetMachine.LastSeen = time.Now()
+
+					// Identificar OS apenas se não temos informações salvas
+					if targetMachine.OSName == "" {
+						if err := ssh.IdentifyOS(client, &targetMachine); err != nil {
+							targetMachine.PrettyName = "Error de leitura de OS"
+						}
+					}
+				}
 			} else {
 				defer client.Close()
 				targetMachine.Status = "ONLINE"
 				targetMachine.LastSeen = time.Now()
-				if err := ssh.IdentifyOS(client, &targetMachine); err != nil {
-					targetMachine.PrettyName = "Error de leitura de OS"
+
+				// Identificar OS apenas se não temos informações salvas
+				if targetMachine.OSName == "" {
+					if err := ssh.IdentifyOS(client, &targetMachine); err != nil {
+						targetMachine.PrettyName = "Error de leitura de OS"
+					}
 				}
 			}
 
@@ -300,4 +361,40 @@ func (m *Menu) printDiscoveryGrid(machines []domain.Machine) {
 func (m *Menu) waitEnter() {
 	fmt.Println("\n Press [ENTER] for continue...")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
+}
+
+// requestPasswordForMachine solicita a senha para uma máquina específica
+func (m *Menu) requestPasswordForMachine(machine *domain.Machine) string {
+	fmt.Printf("\n%s[AUTENTICACAO NECESSARIA]%s Máquina: %s%s%s\n",
+		COLOR_YELLOW+BOLD, COLOR_RESET, COLOR_CYAN+BOLD, machine.Host, COLOR_RESET)
+
+	fmt.Printf("%s[INFO]%s Esta máquina não possui chave SSH configurada.\n",
+		COLOR_BLUE, COLOR_RESET)
+	fmt.Printf("%s[INFO]%s User: %s%s%s\n",
+		COLOR_BLUE, COLOR_RESET, COLOR_CYAN, machine.User, COLOR_RESET)
+	fmt.Printf("%s[BANCO]%s A senha será salva para uso futuro (não precisará digitar novamente)\n",
+		COLOR_GREEN, COLOR_RESET)
+
+	fmt.Printf("\n%sSenha para %s@%s%s: ",
+		COLOR_GREEN+BOLD, machine.User, machine.Host, COLOR_RESET)
+
+	// Lê a senha de forma segura (oculta)
+	password, err := readPassword()
+	if err != nil {
+		fmt.Printf("%s[ERRO]%s Erro ao ler senha: %v\n", COLOR_RED+BOLD, COLOR_RESET, err)
+		return ""
+	}
+
+	return password
+}
+
+// readPassword lê uma senha de forma segura (sem ecoar os caracteres)
+func readPassword() (string, error) {
+	fmt.Print("") // Força o flush do buffer
+	password, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return "", err
+	}
+	fmt.Println() // Nova linha após a entrada da senha
+	return string(password), nil
 }
