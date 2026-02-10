@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"servers_updater/internal/db"
 	"servers_updater/internal/domain"
 	"servers_updater/internal/ssh"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -16,6 +18,7 @@ import (
 const LIMIT_WORKERS = 10
 
 func (m *Menu) screenConfig() {
+	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		DrawRetroHeader()
 		dbMachines, _ := m.DB.GetAllMachines()
@@ -44,20 +47,93 @@ func (m *Menu) screenConfig() {
 		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n")
 
 		fmt.Printf("\n%s[OPCAO]%s > ", COLOR_YELLOW+BOLD, COLOR_RESET)
-		var opt int
-		fmt.Scanln(&opt)
 
-		switch opt {
-		case 1:
+		scanner.Scan()
+		switch scanner.Text() {
+		case "1":
 			m.runDiscoveryRoutine()
-		case 2:
-			fmt.Println("Funcao de cadastro manual")
-		case 0:
+		case "2":
+			m.configureManualConnection(scanner, m.DB)
+		case "0":
 			return
 		default:
 			fmt.Println("Opcao invalida")
 		}
 	}
+}
+
+// Configurar conexao manual para um host que nao esta no banco ou no ssh config
+func (m *Menu) configureManualConnection(scanner *bufio.Scanner, database *db.BoltDB) {
+	ClearScreen()
+	DrawRetroHeader()
+
+	//Box principal para cadastro manual e conexoes
+	fmt.Print(COLOR_BLUE + BOLD)
+	fmt.Print("    ╔═══════════════ CONFIGURACAO MANUAL DE HOSTS ════════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║                    ADICIONAR HOST MANUALMENTE                ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
+
+	// Box de entrada de dados para cadastro manual
+	fmt.Print(COLOR_CYAN + BOLD)
+	fmt.Print("	╔═══════════════ DADOS DO HOST ═══════════════╗" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ║ Insira os dados do host para conexao manual ║" + COLOR_BLACK + "░░\n")
+	fmt.Print("    ╚══════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
+
+	fmt.Printf("%sHost%s (ex: 192.168.1.1):", COLOR_CYAN+BOLD, COLOR_RESET)
+	scanner.Scan()
+	host := scanner.Text()
+
+	fmt.Printf("%sUser%s: ", COLOR_CYAN+BOLD, COLOR_RESET)
+	scanner.Scan()
+	user := scanner.Text()
+
+	fmt.Printf("%sPorta%s (ex: 22): ", COLOR_CYAN+BOLD, COLOR_RESET)
+	scanner.Scan()
+	portStr := scanner.Text()
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		fmt.Printf("%s[ERRO]%s Porta inválida. Usando porta padrão 22.\n", COLOR_RED+BOLD, COLOR_RESET)
+		port = 22
+	}
+
+	fmt.Printf("%sPossui Proxy Jumper? (ex: SIM / NAO)%s ", COLOR_CYAN+BOLD, COLOR_RESET)
+	scanner.Scan()
+	proxyJumper := scanner.Text()
+
+	if proxyJumper == "SIM" {
+		fmt.Printf("%sHostname do Proxy Jumper%s: ", COLOR_CYAN+BOLD, COLOR_RESET)
+		scanner.Scan()
+		proxyJumper = scanner.Text()
+	} else {
+		proxyJumper = ""
+	}
+
+	machine := domain.Machine{
+		Host:        host,
+		User:        user,
+		Port:        port,
+		ProxyJumper: &proxyJumper,
+	}
+
+	// Salvar máquina manualmente no banco
+	if err := database.SaveMachine(machine); err != nil {
+		fmt.Print(COLOR_RED + BOLD)
+		fmt.Print("    ╔═══════════════════ ERRO CRITICO ═══════════════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Printf("    ║ Erro ao salvar máquina: %v                        ║%s░░\n", err, COLOR_BLACK)
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+	} else {
+		fmt.Print(COLOR_GREEN + BOLD)
+		fmt.Print("    ╔═══════════════════ SUCESSO ═══════════════════════════════╗" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ║ Máquina salva com sucesso!                   ║" + COLOR_BLACK + "░░\n")
+		fmt.Print("    ╚══════════════════════════════════════════════════════════╝" + COLOR_BLACK + "░░\n")
+		fmt.Print("      " + COLOR_BLACK + "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" + COLOR_RESET + "\n\n")
+
+		PauseWithMessage("Pressione [ENTER] para continuar...")
+	}
+
 }
 
 func (m *Menu) runDiscoveryRoutine() {
