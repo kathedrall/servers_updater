@@ -59,7 +59,7 @@ func ProcessSingleServer(ctx context.Context, host string, database *db.BoltDB, 
 	}
 
 	log.Printf("[%s] Updating %d packages via %T...", host, len(packages), manager)
-	_, err = client.ExecuteCommand(manager.GetInstallCommand())
+	_, err = client.ExecuteCommand(manager.GetUpdateCommand())
 	if err != nil {
 		sendErrorNotification(host, database, "Upgrade error:"+err.Error())
 		return err

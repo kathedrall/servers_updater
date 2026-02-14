@@ -6,16 +6,37 @@ import (
 	"strings"
 )
 
+const (
+	emergeCheck     = `sudo emerge -pvu @world`
+	emergeGetUpdate = `sudo emerge -u --auto-umask-write @world`
+	emergeCount     = `sudo emerge -pvuND @world | grep -c "ebuild"`
+	emergeRestart   = `if [ "$(uname -r)" != "$(eselect kernel show | grep -o 'linux-[0-9].*')" ]; then echo "YES"; else echo "NOT"; fi`
+)
+
+// EmergeManager Implements interface
 type EmergeManager struct{}
 
+// GetCheckCommand Return command for updater simulator and packages list
 func (m *EmergeManager) GetCheckCommand() string {
-	return CommandCheckUpdate[5]
+	return emergeCheck
 }
 
-func (m *EmergeManager) GetInstallCommand() string {
-	return CommandUpdate[5]
+// GetUpdateCommand Return command for application silent updates
+func (m *EmergeManager) GetUpdateCommand() string {
+	return emergeGetUpdate
 }
 
+// GetCountPackagesCommand Return command for application silent updates
+func (m *EmergeManager) GetCountPackagesCommand() string {
+	return emergeCount
+}
+
+// GetRestartCheckCommand Check if a system restart is required
+func (m *EmergeManager) GetRestartCheckCommand() string {
+	return dnfRestart
+}
+
+// ParseOutput Process text output for comannd simulation
 func (m *EmergeManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 

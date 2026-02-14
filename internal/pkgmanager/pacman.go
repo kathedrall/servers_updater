@@ -6,16 +6,37 @@ import (
 	"strings"
 )
 
+const (
+	pacmanCheck     = `sudo pacman -Sy && pacman -Qu`
+	pacmanGetUpdate = `sudo pacman -Syu --noconfirm`
+	pacmanCount     = `sudo checkupdates | wc -l`
+	pacmanRestart   = `running=$(uname -r); installed=$(pacman -Q linux | awk '{print $2}'); if [[ "$running" != *"$installed"* ]]; then echo "YES"; else echo "NOT"; fi`
+)
+
+// PacmanManager Implements interface
 type PacmanManager struct{}
 
+// GetCheckCommand Return command for updater simulator and packages list
 func (m *PacmanManager) GetCheckCommand() string {
-	return CommandCheckUpdate[4]
+	return pacmanCheck
 }
 
-func (m *PacmanManager) GetInstallCommand() string {
-	return CommandUpdate[4]
+// GetUpdateCommand Return command for application silent updates
+func (m *PacmanManager) GetUpdateCommand() string {
+	return pacmanGetUpdate
 }
 
+// GetCountPackagesCommand Return command for count packages they need updates
+func (m *PacmanManager) GetCountPackagesCommand() string {
+	return pacmanCount
+}
+
+// GetRestartCheckCommand Check if a system restart is required
+func (m *PacmanManager) GetRestartCheckCommand() string {
+	return pacmanRestart
+}
+
+// ParseOutput Process text output for comannd simulation
 func (m *PacmanManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 

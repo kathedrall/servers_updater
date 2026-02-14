@@ -11,48 +11,12 @@ import (
 
 const releaseName = "cat /etc/os-release || uname -a"
 
-var (
-	CommandCheckUpdate = [7]string{
-		"sudo dnf check-update",
-		"sudo apk list -u",
-		"sudo apt-get upgrade -s",
-		"sudo zypper list-updates",
-		"sudo pacman -Sy && pacman -Qu",
-		"sudo emerge -pvu @world",
-		"sudo pkg upgrade -n",
-	}
-	CommandUpdate = [7]string{
-		"sudo dnf update -y",
-		"sudo apk upgrade --no-cache",
-		"sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y",
-		"sudo zypper update --non-interactive",
-		"sudo pacman -Syu --noconfirm",
-		"sudo emerge -u --auto-umask-write @world",
-		"sudo pkg upgrade -y",
-	}
-	CommandCountPackages = [7]string{
-		`sudo dnf check-update --quiet | grep -v '^$' | wc -l`,
-		`sudo apk list -u | wc -l`,
-		`sudo apt-get -s -o Debug::NoLocking=true upgrade | grep -c ^Inst`,
-		`sudo zypper -q lu --best-effort | grep -c 'v |'`,
-		`sudo checkupdates | wc -l`,
-		`sudo emerge -pvuND @world | grep -c "ebuild"`,
-		`pkg version -l "<" | wc -l`,
-	}
-	CommandRestartCheck = [7]string{
-		` needs-restarting -r > /dev/null 2>&1; if [ $? -eq 1]; then echo "SIM"; else echo "NAO"; fi`,
-		` if [ "$(uname -r)" != $(cat /proc/sys/kernel/osrelease 2>/dev/null) ]; then echo "SIM"; else echo "NAO"; fi`,
-		`[ -f /var/run/reboot-required ] && echo '"SIM"' || '"NAO"`,
-		`sudo zypper ps -s >/dev/null 2>&1 && echo "NAO" || echo "SIM"`,
-		`running=$(uname -r); installed=$(pacman -Q linux | awk '{print $2}'); if [[ "$running" != *"$installed"* ]]; then echo "SIM"; else echo "NAO"; fi`,
-		`if [ "$(uname -r)" != "$(eselect kernel show | grep -o 'linux-[0-9].*')" ]; then echo "SIM"; else echo "NAO"; fi`,
-		`if [ "$(freebsd-version -k)" != "$(uname -r)" ]; then echo "SIM"; else echo "NAO"; fi`,
-	}
-)
-
+// PackageManager Implementa interface
 type PackageManager interface {
 	GetCheckCommand() string
-	GetInstallCommand() string
+	GetUpdateCommand() string
+	GetCountPackagesCommand() string
+	GetRestartCheckCommand() string
 	ParseOutput(output string) ([]domain.Package, error)
 }
 

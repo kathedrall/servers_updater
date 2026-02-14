@@ -6,16 +6,37 @@ import (
 	"strings"
 )
 
+const (
+	pkgCheck     = `sudo pkg upgrade -n`
+	pkgGetUpdate = `sudo pkg upgrade -y`
+	pkgCount     = `pkg version -l "<" | wc -l`
+	pkgRestart   = `if [ "$(freebsd-version -k)" != "$(uname -r)" ]; then echo "YES"; else echo "NOT"`
+)
+
+// FreebsdManager Implements interface
 type FreebsdManager struct{}
 
+// GetCheckCommand Return command for updater simulator and packages list
 func (m *FreebsdManager) GetCheckCommand() string {
-	return CommandCheckUpdate[6]
+	return pkgCheck
 }
 
-func (m *FreebsdManager) GetInstallCommand() string {
-	return CommandUpdate[6]
+// GetUpdateCommand Return command for application silent updates
+func (m *FreebsdManager) GetUpdateCommand() string {
+	return pkgGetUpdate
 }
 
+// GetCountPackagesCommand Return command for count packages they need updates
+func (m *FreebsdManager) GetCountPackagesCommand() string {
+	return pkgCount
+}
+
+// GetRestartCheckCommand Check if a system restart is required
+func (m *FreebsdManager) GetRestartCheckCommand() string {
+	return pkgRestart
+}
+
+// ParseOutput Process text output for comannd simulation
 func (m *FreebsdManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 

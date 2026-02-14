@@ -248,7 +248,7 @@ func TestCommandsStanityCheck(t *testing.T) {
 
 	for _, m := range managers {
 		cmdCheck := m.GetCheckCommand()
-		cmdInstall := m.GetInstallCommand()
+		cmdInstall := m.GetUpdateCommand()
 
 		if cmdCheck == "" {
 			t.Errorf("Empty check command for %T", m)

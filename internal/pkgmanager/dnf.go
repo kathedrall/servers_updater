@@ -6,16 +6,37 @@ import (
 	"strings"
 )
 
+const (
+	dnfCheck     = `sudo dnf check-update`
+	dnfGetUpdate = `sudo dnf update -y`
+	dnfCount     = `sudo dnf check-update --quiet | grep -v '^$' | wc -l`
+	dnfRestart   = `needs-restarting -r > /dev/null 2>&1; if [ $? -eq 1]; then echo "YES"; else echo "NOT"; fi`
+)
+
+// DnfManager Implements interface
 type DnfManager struct{}
 
+// GetCheckCommand Return command for updater simulator and packages list
 func (m *DnfManager) GetCheckCommand() string {
-	return CommandCheckUpdate[0]
+	return dnfCheck
 }
 
-func (m *DnfManager) GetInstallCommand() string {
-	return CommandUpdate[0]
+// GetUpdateCommand Return command for application silent updates
+func (m *DnfManager) GetUpdateCommand() string {
+	return dnfGetUpdate
 }
 
+// GetCountPackagesCommand Return command for count packages they need updates
+func (m *DnfManager) GetCountPackagesCommand() string {
+	return dnfCount
+}
+
+// GetRestartCheckCommand Check if a system restart is required
+func (m *DnfManager) GetRestartCheckCommand() string {
+	return dnfRestart
+}
+
+// ParseOutput Process text output for comannd simulation
 func (m *DnfManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 

@@ -6,16 +6,37 @@ import (
 	"strings"
 )
 
+const (
+	zypperCheck     = `sudo zypper list-updates`
+	zypperGetUpdate = `sudo zypper update --non-interactive`
+	zypperCount     = `sudo zypper -q lu --best-effort | grep -c 'v |'`
+	zypperRestart   = `sudo zypper ps -s >/dev/null 2>&1 && echo "NOT" || echo "YES"`
+)
+
+// ZypperManager Implements interface
 type ZypperManager struct{}
 
+// GetCheckCommand Return command for updater simulator and packages list
 func (m *ZypperManager) GetCheckCommand() string {
-	return CommandCheckUpdate[3]
+	return zypperCheck
 }
 
-func (m *ZypperManager) GetInstallCommand() string {
-	return CommandUpdate[3]
+// GetUpdateCommand Return command for application silent updates
+func (m *ZypperManager) GetUpdateCommand() string {
+	return zypperGetUpdate
 }
 
+// GetCountPackagesCommand Return command for count packages they need updates
+func (m *ZypperManager) GetCountPackagesCommand() string {
+	return zypperCount
+}
+
+// GetRestartCheckCommand Check if a system restart is required
+func (m *ZypperManager) GetRestartCheckCommand() string {
+	return zypperRestart
+}
+
+// ParseOutput Process text output for comannd simulation
 func (m *ZypperManager) ParseOutput(output string) ([]domain.Package, error) {
 	var pkgs []domain.Package
 
