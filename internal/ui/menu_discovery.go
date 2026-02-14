@@ -6,6 +6,7 @@ import (
 	"os"
 	"servers_updater/internal/db"
 	"servers_updater/internal/domain"
+	"servers_updater/internal/pkgmanager"
 	"servers_updater/internal/ssh"
 	"strconv"
 	"sync"
@@ -273,7 +274,7 @@ func (m *Menu) runDiscoveryRoutine() {
 
 					// Identificar OS apenas se não temos informações salvas
 					if targetMachine.OSName == "" {
-						if err := ssh.IdentifyOS(client, &targetMachine); err != nil {
+						if err := pkgmanager.DetectOs(client, &targetMachine); err != nil {
 							targetMachine.PrettyName = "Error de leitura de OS"
 						}
 					}
@@ -285,7 +286,7 @@ func (m *Menu) runDiscoveryRoutine() {
 
 				// Identificar OS apenas se não temos informações salvas
 				if targetMachine.OSName == "" {
-					if err := ssh.IdentifyOS(client, &targetMachine); err != nil {
+					if err := pkgmanager.DetectOs(client, &targetMachine); err != nil {
 						targetMachine.PrettyName = "Error de leitura de OS"
 					}
 				}

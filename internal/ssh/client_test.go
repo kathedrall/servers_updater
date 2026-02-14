@@ -1,7 +1,6 @@
 package ssh
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,57 +65,4 @@ func TestResolveHostConfig(t *testing.T) {
 	if machine.KeyPath != "" && machine.KeyPath != expectedKeyPath {
 		t.Errorf("IdentityFile resolution failed. \nExpected: %s\nGot: %v", expectedKeyPath, machine.KeyPath)
 	}
-}
-
-func TestIdentifyOs(t *testing.T) {
-	tests := []struct {
-		name            string
-		mockOutput      string
-		expectedOS      string
-		expectedPretty  string
-		expectedSupport bool
-	}{
-		{
-			name:            "Detect Ubuntu",
-			mockOutput:      "PRETTY_NAME=\"Ubuntu 22.04 LTS\"\nID=ubuntu",
-			expectedOS:      "ubuntu",
-			expectedPretty:  "Ubuntu 22.04 LTS",
-			expectedSupport: true,
-		},
-		{
-			name:            "Detect  Unsupported Alpine",
-			mockOutput:      "PRETTY_NAME=\"Alpine Linux\"\nID=alpine",
-			expectedOS:      "alpine",
-			expectedPretty:  "Alpine Linux",
-			expectedSupport: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mock := &MockSSHClient{Output: tt.mockOutput}
-			machine := &domain.Machine{}
-
-			err := IdentifyOS(mock, machine)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
-
-			if machine.OSName != tt.expectedOS {
-				t.Errorf("OS: got %s, want %s", machine.OSName, tt.expectedOS)
-			}
-
-			if machine.IsSupported != tt.expectedSupport {
-				t.Errorf("Support: got %v, want %v", machine.IsSupported, tt.expectedSupport)
-			}
-		})
-	}
-	t.Run("Handle SSH Error", func(t *testing.T) {
-		mock := &MockSSHClient{Err: errors.New("connection failed")}
-		machine := &domain.Machine{}
-		err := IdentifyOS(mock, machine)
-		if err == nil {
-			t.Errorf("Expected error, got nil")
-		}
-	})
 }

@@ -13,9 +13,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // Client represents an SSH client connection
@@ -393,43 +390,4 @@ func NewClient(user string, host string, port string, keyPath string, password s
 		Client: client,
 	}, nil
 
-}
-
-// IdentifyOS identifies the operating system of the remote machine
-func IdentifyOS(client domain.SSHClient, m *domain.Machine) error {
-	output, err := client.ExecuteCommand("cat /etc/os-release")
-	if err != nil {
-		return err
-	}
-
-	m.PrettyName = ""
-	m.OSName = ""
-	m.IsSupported = false
-
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		line = strings.ReplaceAll(line, "\"", "")
-
-		if strings.HasPrefix(line, "PRETTY_NAME=") {
-			m.PrettyName = strings.TrimPrefix(line, "PRETTY_NAME=")
-		}
-		if strings.HasPrefix(line, "ID=") {
-			m.OSName = strings.TrimPrefix(line, "ID=")
-		}
-	}
-
-	if m.OSName == "debian" || m.OSName == "ubuntu" {
-		m.IsSupported = true
-	}
-
-	if m.PrettyName == "" {
-		if m.OSName != "" {
-			m.PrettyName = cases.Title(language.Und).String(m.OSName)
-		} else {
-			m.PrettyName = "Generic GNU Linux"
-		}
-	}
-
-	return nil
 }
