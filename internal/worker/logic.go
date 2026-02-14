@@ -11,7 +11,6 @@ import (
 	"servers_updater/internal/pkgmanager"
 
 	"servers_updater/internal/security"
-	"servers_updater/internal/ssh"
 )
 
 func ProcessSingleServer(ctx context.Context, host string, database *db.BoltDB, client domain.SSHClient) error {
@@ -21,7 +20,7 @@ func ProcessSingleServer(ctx context.Context, host string, database *db.BoltDB, 
 
 	var machine domain.Machine
 	machine.Host = host
-	if err := ssh.IdentifyOS(client, &machine); err != nil {
+	if err := pkgmanager.DetectOs(client, &machine); err != nil {
 		e := fmt.Errorf("Failed to identify the OS: %v", err)
 		return e
 	}
